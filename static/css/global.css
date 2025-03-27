@@ -1,0 +1,408 @@
+/* global.css */
+
+body {
+  /* padding-top: 60px; */
+  background-color: #e9eaec;
+  color: #333652;
+}
+
+.navbar-custom {
+  background-color: #90adc6 !important;
+}
+.navbar-brand {
+  font-weight: bold;
+}
+
+
+.add-button {
+  background-color: #e9eaec;
+  border: 2px solid #90adc6;
+  color: #90adc6;
+}
+.add-button:hover {
+  background-color: #90adc6;
+  color: #e9eaec;
+  border: 2px solid #e9eaec;
+}
+.delete-custom {
+  background-color: #e9eaec;
+  border: 1px solid #333652;
+}
+
+.custom-list-item {
+  background-color: #90adc6;
+  color: #e9eaec !important;
+}
+
+li.custom-list-item a,
+li.custom-list-item a:link,
+li.custom-list-item a:visited,
+li.custom-list-item a:hover,
+li.custom-list-item a:active {
+  color: #e9eaec !important;
+  background-color: #90adc6;
+  font-weight: bold;
+}
+
+.new-coll-btn {
+  background-color: #e9eaec;
+  border: 2px solid #90adc6;
+  color: #90adc6;
+}
+.new-coll-btn:hover {
+  background-color: #90adc6;
+  color: #e9eaec;
+  border: 2px solid #e9eaec;
+}
+
+.prf-add {
+  background-color: #90adc6;
+  color: #e9eaec;
+  border: 2px solid #90adc6;
+}
+.prf-add:hover {
+  background-color: #e9eaec;
+  border: 2px solid #90adc6;
+  color: #90adc6;
+}
+
+.discard-custom {
+  background-color: #e9eaec;
+  border: 2px solid #333652;
+  color: #333652;
+}
+.discard-custom:hover {
+  background-color: #333652;
+  color: #e9eaec;
+  border: 2px solid #333652;
+}
+
+.custom-bg {
+  background-color: #e9eaec;
+  border: none !important;
+  color: #333652;
+}
+
+.add-button-new {
+  background-color: #ffffff;
+  border: 2px solid #90adc6;
+  color: #90adc6;
+}
+.add-button-new:hover {
+  background-color: #90adc6;
+  color: #e9eaec;
+  border: 2px solid #90adc6;
+}
+
+.custom-register {
+  color: #90adc6 !important;
+}
+
+.filter-div {
+  background-color: #90adc6;
+  padding: 5px;
+  border-radius: 5px;
+}
+
+.profile-img {
+  width: 100px;  /* or your desired diameter */
+  height: 100px; /* match the width for a circle */
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  border: 3px solid #333652;  /* adjust thickness and color as needed */
+}
+
+/* Ensure the right column height matches the left column (poem height) */
+.col-md-6 {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%; /* Match the poem height */
+}
+
+.poem-content-container {
+  max-height: 300px;
+  overflow-y: auto;
+  /* Optional: add some padding or border if needed */
+  padding: 10px;
+  border: 1px solid #e9eaec;
+}
+
+/* Comments container stays within fixed height */
+.comments-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  max-height: 100%; /* Prevent overflow */
+}
+
+/* Make the comments list scrollable */
+.comments-list {
+  flex-grow: 1;
+  max-height: 200px; /* Adjust this based on your design */
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Profile images in comments */
+.comment-profile-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  margin-right: 0.5rem;
+}
+
+.search-results-container {
+  max-height: 600px; /* Adjust height as needed */
+  overflow-y: auto;
+  padding-right: 10px; /* Prevents text from touching scrollbar */
+}
+
+/* Remove Bootstrap default link styles for poem titles */
+.poem-link {
+  color: #90adc6; /* Use the default text color instead of Bootstrap blue */
+}
+
+/* Ensure hover does not change the color */
+.poem-link:hover {
+  color: inherit;
+}
+
+/* Increase spacing between poem title and favorite (star) button */
+.poem-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px; /* Adjust spacing between title and star button */
+}
+
+/* Remove button styling and show only the star icon */
+.favorite-btn {
+  border: none; /* Remove the default button border */
+  background: none; /* Remove background */
+  padding: 0; /* Remove padding */
+  font-size: 1.5rem; /* Adjust star size */
+  cursor: pointer; /* Maintain clickable behavior */
+}
+
+/* Default star (outlined) */
+.star-icon {
+  font-size: 1.5rem;
+  color: black; /* Default black outline */
+  transition: color 0.1s ease-in-out;
+}
+
+/* Filled yellow star when favorited */
+.star-icon.text-warning {
+  color: gold; /* Change to gold when starred */
+}
+
+.fav-button {
+  background: none !important;
+  border: 2px solid #333652;
+  color: #333652;
+}
+.fav-button:hover {
+  background-color: rgba(250, 208, 44, 0.4);;
+  color: #333652;
+  border: 2px solid #333652;
+}
+
+/* Autocomplete suggestions container */
+.autocomplete-suggestions {
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  background: #fff;
+  position: absolute;
+  z-index: 1000;
+  width: 100%;
+}
+
+/* Individual suggestion item */
+.autocomplete-suggestion {
+  padding: 5px;
+  cursor: pointer;
+}
+
+.autocomplete-suggestion:hover {
+  background-color: #f0f0f0;
+}
+
+/* Container for tag chips */
+.tag-chips-container {
+  margin-top: 5px;
+}
+
+/* Individual tag chip */
+.tag-chip {
+  display: inline-block;
+  background-color: #fad02c;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 15px;
+  margin-right: 5px;
+  margin-bottom: 5px;
+  position: relative;
+}
+
+/* Remove button inside the tag chip */
+.tag-chip .remove-tag {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  background: #dc3545;
+  border-radius: 50%;
+  color: white;
+  width: 15px;
+  height: 15px;
+  text-align: center;
+  line-height: 15px;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+/* Common style for tag chips displayed in all views */
+.tag-chip-display {
+  display: inline-block;
+  background-color: #fad02c;
+  color: #333652;
+  padding: 3px 8px;
+  border: 1px solid #333652;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-right: 5px;
+  transition: color 0.9s ease-in-out;
+  /* margin-top: 5px; */
+}
+/* Common style for tag chips displayed in all views */
+.tag-chip-display:hover {
+  display: inline-block;
+  background-color: rgba(250, 208, 44, 0.4);
+  color: #333652;
+  padding: 3px 8px;
+  border: 1px solid #333652;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-right: 5px;
+  transition: color 0.9s ease-in-out;
+  /* margin-top: 5px; */
+}
+
+/* Optional containers to help with spacing; adjust as needed */
+/* .poem-tags,
+.poem-tags-summary,
+.poem-tags-condensed {
+  margin-top: 10px;
+} */
+
+.tag-chip-filter {
+  display: inline-block;
+  background-color: #fad02c;
+  color: #333652;
+  padding: 3px 8px;
+  border: 1px solid #333652;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-right: 5px;
+  margin-top: 5px;
+  position: relative;  
+}
+
+.tag-chip-filter .remove-tag {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  background: #dc3545;
+  border: 1px solid #333652;
+  border-radius: 50%;
+  color: white;
+  width: 15px;
+  height: 15px;
+  text-align: center;
+  line-height: 15px;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.list-group-item-action.fix-display {
+  display: block !important;
+}
+
+.custom-poem-profile {
+  height:200px; 
+  overflow-y:auto; 
+  margin-bottom: 10px; 
+  padding: 5px;
+  border: 1px solid #e9eaec;
+}
+
+.custom-tab {
+  color: #90adc6;
+}
+
+.custom-tab-header .nav-link {
+  color: #90adc6 !important;
+  border-color: #90adc6 !important;
+  border-bottom-color: #90adc6 !important;
+}
+.custom-tab-header .nav-link.active {
+  color: #e9eaec !important;
+  background-color: #333652;
+  border-color: #90adc6 !important;
+  border-bottom-color: #90adc6 !important;
+  opacity: 0.8;
+}
+
+.custom-searchbar {
+  width: 265px;  
+}
+
+/* Follow Button Style */
+.follow-btn {
+  background-color: #90adc6;
+  border: 1px solid #90adc6;
+  color: #333;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.follow-btn:hover {
+  background-color: #e9eaec;
+  border: 1px solid #90adc6;
+  color: #333652;
+}
+
+/* Following Button Style */
+.following-btn {
+  background-color: #e9eaec !important;
+  border: 1px solid #90adc6 !important;
+  color: #333652;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.following-btn:hover {
+  background-color: #e9eaec;
+  border: 1px solid #90adc6;
+  color: #333652;
+}
+
+.prompt-title {
+  font-size: 30px;
+  font-weight: 600;
+}
+.make-small {
+  font-size: 10px;
+  font-weight: lighter !important;
+  color: #90adc6;
+}
