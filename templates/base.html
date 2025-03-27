@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PoetryVerse</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/global.css') }}">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline';">
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light navbar-custom">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('home') }}">PoetryVerse</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('explore') }}">Explore</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('prompts') }}">Prompts</a>
+          </li>          
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('profile') }}">Profile</a>
+          </li>
+          {% endif %}
+        </ul>
+        <!-- Add search form here -->
+        <form class="d-flex me-3" action="{{ url_for('search') }}" method="GET">
+          <input class="form-control me-2 custom-searchbar" type="search" name="q" placeholder="Search users/ poems/ prompts" aria-label="Search">
+          <button class="btn btn-outline-success prf-add" type="submit">Search</button>
+        </form>
+        <ul class="navbar-nav">
+          {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+          </li>
+          {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+          </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
+  <div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+  
+  <!-- Delete Confirmation Modal -->
+  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="deleteConfirmModalLabel">Confirm Deletion</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="deleteConfirmText"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+          <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Yes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+  <script>
+    // Delete Modal JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+      let deleteType = '';
+      let deleteName = '';
+      let deleteId = '';
+  
+      // document.querySelectorAll('.delete-btn').forEach(btn => {
+      //   btn.addEventListener('click', function() {
+      //     deleteType = this.dataset.type;
+      //     deleteName = this.dataset.name;
+      //     deleteId = this.dataset.id || '';
+      //     let text = "";
+      //     if(deleteType === 'poem') {
+      //       text = "Are you sure you want to delete the poem: " + deleteName + "?";
+      //     } else if(deleteType === 'collection') {
+      //       text = "Are you sure you want to delete the collection: " + deleteName + "?";
+      //     }
+      //     document.getElementById('deleteConfirmText').innerText = text;
+      //     let modalEl = document.getElementById('deleteConfirmModal');
+      //     let modal = new bootstrap.Modal(modalEl);
+      //     modal.show();
+      //   });
+      // });
+  
+      document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        let url = "";
+        let formData = new FormData();
+        if(deleteType === 'poem') {
+          url = '/delete_poem';
+          formData.append('poem_id', deleteId);
+        } else if(deleteType === 'collection') {
+          url = '/delete_collection';
+          formData.append('collection_id', deleteId);
+        }
+        fetch(url, {
+          method: 'POST',
+          body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+          if(data.status === 'success') {
+            window.location.href = '/profile';
+          } else {
+            alert("Error: " + data.message);
+          }
+        })
+        .catch(error => console.error("Error:", error));
+      });
+    });
+  </script>
+</body>
+</html>

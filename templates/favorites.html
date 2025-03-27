@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Favourites</h2>
+  <div class="d-flex align-items-center filter-div">
+    <label for="filterType" class="me-2 mb-0" style="font-size: 0.9rem;">Filter by Type:</label>
+    <select id="filterType" class="form-select form-select-sm me-3" style="width: auto;">
+      <option value="all">All</option>
+    </select>
+    <label for="sortBy" class="me-2 mb-0" style="font-size: 0.9rem;">Sort by:</label>
+    <select id="sortBy" class="form-select form-select-sm me-3" style="width: auto;">
+      <option value="most_interacted">Most Interacted With</option>
+      <option value="old_to_new">New to Old</option>
+      <option value="new_to_old">Old to New</option>
+    </select>
+    <label for="filterTagInput" class="me-2 mb-0" style="font-size: 0.9rem;">Filter by Tags:</label>
+    <div style="position: relative; width: auto;">
+      <input type="text" id="filterTagInput" class="form-control form-control-sm" placeholder="Enter tag" autocomplete="off">
+      <div id="filter-tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Wrap the chips container and the apply filter button in a right-aligned div -->
+<div class="d-flex justify-content-end align-items-center mb-3">
+  <div id="filter-tag-chips" class="tag-chips-container me-2"></div>
+  <input type="hidden" id="filterTagsHidden" name="filter_tags">
+  <button id="applyTagFilterBtn" class="btn btn-sm btn-primary fav-button">Apply Filter</button>
+</div>
+
+
+<div class="list-group" id="poemList">
+  {% for poem in poems %}
+  <div class="list-group-item mb-3 custom-bg" 
+       data-poem-type="{{ poem.poem_type | default('') | lower }}"
+       data-poem-id="{{ poem.id }}"
+       data-comments="{{ poem.comments|length }}">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <!-- Left Column: Author info, Poem Title and Type Button, then Content -->
+          <div class="col-md-6">
+            <!-- Author Identification (Clickable) -->
+            <div class="d-flex align-items-center mb-2">
+              <a href="{{ url_for('user_profile', user_id=poem.author.id) }}" class="d-flex align-items-center text-decoration-none text-dark">
+                {% if poem.author.profile_image %}
+                  <img src="{{ poem.author.profile_image }}" alt="Profile Image" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: center; margin-right: 0.5rem;">
+                {% else %}
+                  <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center" style="width: 40px; height: 40px; margin-right: 0.5rem;">
+                    <span class="text-white" style="font-size: 1rem;">?</span>
+                  </div>
+                {% endif %}
+                <span class="fw-bold">{{ poem.author.username }}</span>
+              </a>
+            </div>
+            <!-- Poem Title and Type -->
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex justify-content-between align-items-center poem-header">
+               <!-- ✅ Poem Title Clickable -->
+                <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="poem-link">
+                  <h5 class="card-title mb-0">{{ poem.title }}</h5>
+                </a>
+                <!-- ✅ Star Button (Separate from Link) -->
+                <button class="favorite-btn" data-poem-id="{{ poem.id }}">
+                  <span class="star-icon {% if poem in current_user.favorite_poems %}text-warning{% else %}text-secondary{% endif %}">
+                    &#9733;
+                  </span>
+                </button>
+              </div>              
+              {% if poem.poem_type %}
+              <div>
+                <small class="me-1">Type:</small>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.location.href='{{ url_for('explore') }}?type={{ poem.poem_type | lower }}'">
+                  {{ poem.poem_type }}
+                </button>
+              </div>
+              {% endif %}
+            </div>
+            <div class="poem-content-container">
+              <p class="card-text mt-2">{{ poem.content | replace('\n', '<br>') | safe }}</p>
+            </div>
+            <br>            
+            {% if poem.tags %}
+            <div class="poem-tags">
+              {% for tag in poem.tags %}
+              <a href="{{ url_for('search', q=tag.name) }}" class="tag-chip-link">
+                <span class="tag-chip-display">{{ tag.name }}</span>
+              </a>
+              {% endfor %}
+            </div>
+          {% endif %}
+          </div>
+          <!-- Right Column: Comment Form, Star Rating, and Scrollable Comments -->
+          <div class="col-md-6 d-flex flex-column" style="border-left: 1px solid #ddd;">
+            <!-- Comment Form with input group -->
+            <form class="add-comment-form" data-poem-id="{{ poem.id }}">
+              <div class="input-group mb-2">
+                <input type="text" class="form-control" name="comment" placeholder="Add a comment">
+                <button type="submit" class="btn btn-sm btn-outline-primary add-button-new">Submit</button>
+              </div>
+            </form>
+
+            <br>
+            <!-- Star Rating -->
+            <div class="rating mb-3" data-rating="{{ poem.rating }}" data-poem-id="{{ poem.id }}" style="padding-left: 15px;">
+              {% for i in range(1, 6) %}
+                <span class="star {% if i <= poem.rating %}text-warning{% else %}text-secondary{% endif %}" data-rating-value="{{ i }}">&#9733;</span>
+              {% endfor %}
+            </div>
+
+            <!-- Comments Section (Scrollable) -->
+            <div class="comments-container">
+              <h6>Comments:</h6>
+              <div class="comments-list">
+                {% set sorted_comments = poem.comments|sort(attribute='created_at', reverse=True) %}
+                {% for comment in sorted_comments %}
+                  {% if comment.is_edit_marker %}
+                    <hr>
+                    <p class="small text-center text-muted">{{ comment.text }}</p>
+                  {% else %}
+                    <p class="small d-flex align-items-start" id="comment-{{ comment.id }}">
+                      <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="d-flex align-items-center text-decoration-none text-dark">
+                        {% if comment.author.profile_image %}
+                          <img src="{{ comment.author.profile_image }}" alt="Profile" class="comment-profile-img">
+                        {% else %}
+                          <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
+                            <span class="text-white">?</span>
+                          </div>
+                        {% endif %}
+                        <strong class="me-1">{{ comment.author.username }}</strong>
+                      </a>: {{ comment.text }}
+                      {% if current_user.is_authenticated and comment.user_id == current_user.id %}
+                        <button class="btn btn-link btn-sm delete-comment" data-comment-id="{{ comment.id }}">Delete</button>
+                      {% endif %}
+                    </p>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // ✅ Handle favoriting/unfavoriting
+  document.querySelectorAll('.favorite-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      const poemId = this.dataset.poemId;
+      fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          const starIcon = this.querySelector('.star-icon');
+          if (data.favorited) {
+            starIcon.classList.remove("text-secondary");
+            starIcon.classList.add("text-warning");
+          } else {
+            starIcon.classList.remove("text-warning");
+            starIcon.classList.add("text-secondary");
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    });
+  });
+
+  // ✅ Handle adding a comment dynamically
+  document.querySelectorAll('.add-comment-form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const poemId = this.dataset.poemId;
+      const commentInput = this.querySelector('input[name="comment"]');
+      const commentText = commentInput.value.trim();
+      if(commentText === "") return;
+
+      const formData = new FormData();
+      formData.append("poem_id", poemId);
+      formData.append("comment", commentText);
+
+      fetch("/add_comment", {
+        method: "POST",
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.status === "success") {
+          const commentsList = this.closest('.col-md-6').querySelector('.comments-list');
+
+          // ✅ Create new comment dynamically
+          const newComment = document.createElement("p");
+          newComment.classList.add("small", "d-flex", "align-items-start");
+          newComment.id = 'comment-' + data.comment_id;
+
+          // ✅ Add profile image if available
+          let profileImageHtml = "";
+          if (data.profile_image) {
+            profileImageHtml = `<img src="${data.profile_image}" alt="Profile" class="comment-profile-img">`;
+          } else {
+            profileImageHtml = `
+              <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
+                <span class="text-white">?</span>
+              </div>`;
+          }
+
+          // ✅ Set inner HTML with profile image, username, and comment text
+          newComment.innerHTML = `
+            ${profileImageHtml}
+            <strong class="me-1">${data.username}</strong>: ${data.comment_text}
+          `;
+
+          // ✅ Insert the new comment at the top of the list
+          commentsList.insertBefore(newComment, commentsList.firstChild);
+
+          // ✅ Clear input field after submission
+          commentInput.value = "";
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    });
+  });
+});
+</script>
+{% endblock %}

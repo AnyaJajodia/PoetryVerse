@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Add New Poem</h2>
+<form method="post">
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input type="text" class="form-control" id="title" name="title" required>
+  </div>
+  <div class="mb-3">
+    <label for="type" class="form-label">Type</label>
+    <input type="text" class="form-control" id="type" name="type" placeholder="e.g., Free verse, Ode, Hermit Crab">
+  </div>
+  <div class="mb-3">
+    <label for="content" class="form-label">Content</label>
+    <textarea class="form-control" id="content" name="content" rows="20" required></textarea>
+  </div>
+    <!-- Tag Input Field -->
+    <div class="mb-3" style="position: relative;">
+      <label for="tag-input" class="form-label">Tags</label>
+      <input type="text" class="form-control" id="tag-input" placeholder="Type a tag and press Enter" autocomplete="off">
+      <div id="tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+      <div id="tag-chips" class="tag-chips-container"></div>
+      <input type="hidden" name="tags" id="tags-hidden">
+    </div>
+  
+  <!-- New Visibility Dropdown for Poem -->
+  <div class="mb-3">
+    <label for="visibility" class="form-label">Visibility</label>
+    <select class="form-select" id="visibility" name="visibility">
+      <option value="public" selected>Public</option>
+      <option value="private">Private</option>
+    </select>
+  </div>
+  <div class="mb-3">
+    <label for="collection" class="form-label">Select Collection</label>
+    <select class="form-select" name="collection" id="collection">
+      <option value="none">Add with no collection</option>
+      {% for coll in collections %}
+        {% if coll.name != "Favorites" %}
+          <option value="{{ coll.id }}">{{ coll.name }}</option>
+        {% endif %}
+      {% endfor %}
+      <option value="new">Add to new collection</option>
+    </select>    
+  </div>
+  <!-- New Collection Field (shown only if new collection is selected) -->
+  <div class="mb-3" id="new-collection-field" style="display: none;">
+    <label for="new_collection" class="form-label">New Collection Name</label>
+    <input type="text" class="form-control" name="new_collection" id="new_collection">
+    <!-- Visibility for new collection -->
+    <label for="coll_visibility" class="form-label mt-2">Collection Visibility</label>
+    <select class="form-select" id="coll_visibility" name="coll_visibility">
+      <option value="public" selected>Public</option>
+      <option value="private">Private</option>
+    </select>
+  </div>
+  {% if prompt_id %}
+    <input type="hidden" name="prompt_id" value="{{ prompt_id }}">
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary prf-add">Submit</button>
+    <button type="button" class="btn btn-secondary discard-button discard-custom" id="discardBtn">Discard</button>
+  </div>
+</form>
+
+<!-- Discard Confirmation Modal -->
+<div class="modal fade" id="discardConfirmModal" tabindex="-1" aria-labelledby="discardConfirmModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="discardConfirmModalLabel">Discard Changes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Do you want to discard your changes?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+        <button type="button" class="btn btn-danger" id="confirmDiscardBtn">Yes</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+
+  // Tag functionality for add_poem.html
+  (function() {
+    const tagInput = document.getElementById('tag-input');
+    const tagChipsContainer = document.getElementById('tag-chips');
+    const tagSuggestions = document.getElementById('tag-suggestions');
+    const tagsHidden = document.getElementById('tags-hidden');
+    let tags = [];
+
+    function updateHiddenInput() {
+      tagsHidden.value = tags.join(',');
+    }
+
+    function createTagChip(tag) {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.textContent = tag;
+
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'remove-tag';
+      removeBtn.textContent = 'x';
+      removeBtn.onclick = function() {
+        tagChipsContainer.removeChild(chip);
+        tags = tags.filter(t => t !== tag);
+        updateHiddenInput();
+      };
+
+      chip.appendChild(removeBtn);
+      return chip;
+    }
+
+    function addTag(tag) {
+      if (tag && !tags.includes(tag)) {
+        tags.push(tag);
+        const chip = createTagChip(tag);
+        tagChipsContainer.appendChild(chip);
+        updateHiddenInput();
+      }
+    }
+
+    tagInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const tag = tagInput.value.trim();
+        if (tag !== '') {
+          addTag(tag);
+          tagInput.value = '';
+          tagSuggestions.style.display = 'none';
+        }
+      }
+    });
+
+    tagInput.addEventListener('input', function() {
+      const query = tagInput.value.trim();
+      if (query.length > 0) {
+        fetch(`/autocomplete_tags?query=${query}`)
+          .then(response => response.json())
+          .then(data => {
+            tagSuggestions.innerHTML = '';
+            if (data.length > 0) {
+              data.forEach(suggestion => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-suggestion';
+                div.textContent = suggestion;
+                div.addEventListener('click', function() {
+                  addTag(suggestion);
+                  tagInput.value = '';
+                  tagSuggestions.style.display = 'none';
+                });
+                tagSuggestions.appendChild(div);
+              });
+              tagSuggestions.style.display = 'block';
+            } else {
+              // If no suggestions, show an option to add the new tag
+              const div = document.createElement('div');
+              div.className = 'autocomplete-suggestion';
+              div.textContent = `Add "${query}"`;
+              div.addEventListener('click', function() {
+                addTag(query);
+                tagInput.value = '';
+                tagSuggestions.style.display = 'none';
+              });
+              tagSuggestions.appendChild(div);
+              tagSuggestions.style.display = 'block';
+            }
+          });
+      } else {
+        tagSuggestions.style.display = 'none';
+      }
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!tagInput.contains(e.target) && !tagSuggestions.contains(e.target)) {
+        tagSuggestions.style.display = 'none';
+      }
+    });
+  })();
+
+  // Toggle new collection field when "Add to new collection" is selected
+  document.getElementById('collection').addEventListener('change', function() {
+    const field = document.getElementById('new-collection-field');
+    if (this.value === 'new') {
+      field.style.display = 'block';
+    } else {
+      field.style.display = 'none';
+    }
+  });
+
+  // When Discard is clicked, show the confirmation modal
+  document.getElementById('discardBtn').addEventListener('click', function() {
+    var discardModal = new bootstrap.Modal(document.getElementById('discardConfirmModal'));
+    discardModal.show();
+  });
+
+  // If user confirms discard, redirect to the profile page
+  document.getElementById('confirmDiscardBtn').addEventListener('click', function() {
+    window.location.href = "{{ url_for('profile') }}";
+  });
+</script>
+{% endblock %}

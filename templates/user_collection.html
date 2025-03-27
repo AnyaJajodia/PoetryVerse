@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <!-- Collection Header -->
+  <div class="d-flex align-items-center mb-4">
+    <h2 class="me-3">{{ collection.name }}</h2>
+    <small class="text-muted">({{ collection.visibility|capitalize }})</small>
+  </div>
+  
+  <!-- Collection Poems -->
+  <div class="mb-4">
+    <h3>Poems in this Collection</h3>
+    {% if poems %}
+      <div class="row">
+        {% for poem in poems %}
+        <div class="col-md-4 mb-3">
+          <div class="card">
+            <div class="card-body">
+              <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="card-title">
+                <div class="d-flex justify-content-between align-items-center">
+                  <!-- ✅ Poem Title Clickable -->
+                  <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="poem-link">
+                    <h5 class="card-title mb-0">{{ poem.title }}</h5>
+                  </a>
+                  <!-- ✅ Star Button (Separate from Link) -->
+                  <button class="favorite-btn" data-poem-id="{{ poem.id }}">
+                    <span class="star-icon {% if poem in current_user.favorite_poems %}text-warning{% else %}text-secondary{% endif %}">
+                      &#9733;
+                    </span>
+                  </button>
+                </div>                
+              </a>              
+              <div class="poem-content-container">
+                <p class="card-text mt-2">{{ poem.content | replace('\n', '<br>') | safe }}</p>
+              </div>
+              <br>
+              <p class="small text-muted">Type: {{ poem.poem_type or "N/A" }}</p>
+              <p class="small text-muted">By: {{ poem.author.username }}</p>
+              {% if poem.tags %}
+                <div class="poem-tags">
+                  {% for tag in poem.tags %}
+                  <a href="{{ url_for('search', q=tag.name) }}" class="tag-chip-link">
+                    <span class="tag-chip-display">{{ tag.name }}</span>
+                  </a>                  
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>No public poems in this collection.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.favorite-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const poemId = this.dataset.poemId;
+        fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            const starIcon = this.querySelector('.star-icon');
+            if (data.favorited) {
+              starIcon.classList.remove("text-secondary");
+              starIcon.classList.add("text-warning");
+            } else {
+              starIcon.classList.remove("text-warning");
+              starIcon.classList.add("text-secondary");
+            }
+          } else {
+            alert("Error: " + data.message);
+          }
+        })
+        .catch(error => console.error("Error:", error));
+      });
+    });
+  });
+</script>
+{% endblock %}
+  

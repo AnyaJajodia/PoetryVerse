@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <h2>Search Results for "{{ query }}"</h2>
+  <hr>
+
+  <!-- Nav Tabs -->
+  <ul class="nav nav-tabs custom-tab-header" id="searchTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="poems-tab" data-bs-toggle="tab" data-bs-target="#poems" type="button" role="tab" aria-controls="poems" aria-selected="false">Poems</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users" type="button" role="tab" aria-controls="users" aria-selected="true">Users</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="prompts-tab" data-bs-toggle="tab" data-bs-target="#prompts" type="button" role="tab" aria-controls="prompts" aria-selected="false">Prompts</button>
+    </li>
+  </ul>
+  
+  <!-- Tab Content -->
+  <div class="tab-content" id="searchTabsContent">
+    
+    <!-- Users Tab -->
+    <div class="tab-pane fade custom-tab" id="users" role="tabpanel" aria-labelledby="users-tab">
+      <div class="mt-3">
+        {% if user_results %}
+          <div class="list-group search-results-container">
+            {% for user in user_results %}
+              <a href="{{ url_for('user_profile', user_id=user.id) }}" class="list-group-item list-group-item-action">
+                <div class="d-flex align-items-center">
+                  {% if user.profile_image %}
+                    <img src="{{ user.profile_image }}" alt="Profile Image" class="rounded-circle me-2" style="width:40px; height:40px; object-fit: cover; object-position: center;">
+                  {% else %}
+                    <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center me-2" style="width:40px; height:40px;">
+                      <span class="text-white">?</span>
+                    </div>
+                  {% endif %}
+                  <div>
+                    <strong>{{ user.username }}</strong>
+                    {% if user.description %}
+                      <p class="mb-0 small text-muted">{{ user.description }}</p>
+                    {% endif %}
+                  </div>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p>No users found.</p>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Prompts Tab -->
+    <div class="tab-pane fade custom-tab" id="prompts" role="tabpanel" aria-labelledby="prompts-tab">
+      <div class="mt-3">
+        {% if prompt_results %}
+          <div class="list-group search-results-container">
+            {% for prompt in prompt_results %}
+              <a href="{{ url_for('view_prompt', prompt_id=prompt.id) }}" class="list-group-item list-group-item-action">
+                <h5 class="mb-1">{{ prompt.title }}</h5>
+                {% if prompt.description %}
+                  <p class="mb-1">{{ prompt.description }}</p>
+                {% endif %}
+                <small>Posted by: {{ prompt.creator.username }} on {{ prompt.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p>No prompts found.</p>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Poems Tab -->
+    <div class="tab-pane fade custom-tab show active" id="poems" role="tabpanel" aria-labelledby="poems-tab">
+      <div class="mt-3">
+        {% if poem_results %}
+          <div class="list-group search-results-container">
+            {% for poem in poem_results %}
+              <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="list-group-item list-group-item-action">
+                <h5 class="mb-1">{{ poem.title }}</h5>
+                {% set lines = poem.content.split('\n') %}
+                {% set snippet = lines[:3]|join('<br>') %}
+                <p class="text-muted mb-0">
+                  {{ snippet|safe }}{% if lines|length > 3 %}...{% endif %}
+                </p>
+                <small>By {{ poem.author.username }}</small>
+              </a>
+              {% if poem.tags %}
+                <div class="mt-1" style="padding-left: 15px;">
+                  {% for tag in poem.tags %}
+                    <a href="{{ url_for('search', q=tag.name) }}" class="tag-chip-link">
+                      <span class="tag-chip-display">{{ tag.name }}</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              <div style="margin-bottom: 15px;"></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p>No poems found.</p>
+        {% endif %}
+      </div>
+    </div>
+    
+  </div>
+</div>
+{% endblock %}

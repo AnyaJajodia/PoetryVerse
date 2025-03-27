@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Prompts</h2>
+<!-- Form to add a new prompt -->
+<form method="post">
+  <div class="mb-3">
+    <label for="title" class="form-label">Prompt Title</label>
+    <input type="text" class="form-control" id="title" name="title" required>
+  </div>
+  <div class="mb-3">
+    <label for="description" class="form-label">Prompt Description (optional)</label>
+    <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+  </div>
+  <button type="submit" class="btn btn-primary prf-add">Add Prompt</button>
+</form>
+<hr>
+<!-- List of prompts -->
+<div class="list-group">
+  {% for prompt in prompts %}
+  <a href="{{ url_for('view_prompt', prompt_id=prompt.id) }}" class="list-group-item list-group-item-action">
+    <h5 class="mb-1">{{ prompt.title }}</h5>
+    {% if prompt.description %}
+      <p class="mb-1">{{ prompt.description }}</p>
+    {% endif %}
+    <small>Posted by: {{ prompt.creator.username }} on {{ prompt.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

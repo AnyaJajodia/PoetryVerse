@@ -1,0 +1,550 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <!-- Profile Image Section -->
+  <div class="me-4 text-center">
+    {% if current_user.profile_image %}
+      <img id="profileImage" src="{{ current_user.profile_image }}" alt="Profile Image" class="rounded-circle profile-img" style="width: 100px; height: 100px;">
+    {% else %}
+      <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center" style="width: 100px; height: 100px;">
+        <span class="text-white" style="font-size: 2rem;">?</span>
+      </div>
+    {% endif %}
+    <div class="mt-2">
+      <button class="btn btn-sm btn-outline-primary new-coll-btn" data-bs-toggle="modal" data-bs-target="#editProfileImageModal">
+        Edit Profile Image
+      </button>
+    </div>
+  </div>
+  <!-- Username and Description Section -->
+  <div class="flex-grow-1">
+    <h2>{{ current_user.username }}</h2>
+    <div class="d-flex justify-content-between align-items-center">
+      <p id="user-description" class="mb-0">
+        {% if current_user.description %}
+          {{ current_user.description }}
+        {% else %}
+          <em class="custom-register">add description ...</em>
+        {% endif %}
+      </p>
+      <button class="btn btn-sm btn-outline-primary new-coll-btn" data-bs-toggle="modal" data-bs-target="#editDescriptionModal">
+        Edit Description
+      </button>
+    </div>
+    {% if current_user.is_authenticated %}
+    <div class="d-flex mb-3">
+      <div class="me-3">
+        <strong>{{ current_user.followers.count() }}</strong>
+        <small>Followers</small>
+      </div>
+      <div>
+        <strong>{{ current_user.following.count() }}</strong>
+        <small>Following</small>
+      </div>
+    </div>
+  {% endif %}
+  </div>
+</div>
+
+<!-- Flash message container -->
+<div id="flash-message"></div>
+<div class="mb-3">
+  <!-- View Favorites Button (Above Add Poem Button) -->
+<div class="mb-3">
+  <a href="{{ url_for('favorites') }}" class="btn btn-outline-warning fav-button">★ View Favorites</a>
+</div>
+  <div class="d-flex justify-content-between align-items-center">
+    <h3>Your Collections</h3>
+    <button class="btn di" data-bs-toggle="modal" data-bs-target="#newCollectionModal">
+      Make New Collection +
+    </button>
+  </div>
+  <ul class="list-group mt-2">
+    {% for coll in current_user.collections %}
+    <li class="list-group-item d-flex justify-content-between align-items-center custom-list-item">
+      <div>
+        <a href="{{ url_for('collection', collection_id=coll.id) }}">{{ coll.name }}</a>
+        <small class="text-muted"> (Visibility: </small>
+        <select class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updateCollectionVisibility({{ coll.id }}, this.value)">
+          <option value="public" {% if coll.visibility == 'public' %}selected{% endif %}>Public</option>
+          <option value="private" {% if coll.visibility == 'private' %}selected{% endif %}>Private</option>
+        </select>
+        <small class="text-muted">)</small>
+      </div>
+      <div>
+        <span class="badge bg-secondary rounded-pill me-2">{{ coll.poems|length }}</span>
+        <button class="btn btn-sm btn-outline-danger delete-btn delete-custom" data-type="collection" data-name="{{ coll.name }}" data-id="{{ coll.id }}">
+          &#128465;
+        </button>
+      </div>
+    </li>
+    {% else %}
+    <li class="list-group-item">No collections yet.</li>
+    {% endfor %}
+  </ul>  
+</div>
+<br>
+<div class="mb-3">
+  <a href="{{ url_for('add_poem') }}" class="btn btn-success prf-add">Add Poem +</a>
+</div>
+<!-- Poems Section -->
+<div class="row">
+  {% for poem in current_user.poems %}
+  <div class="col-md-4 mb-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+          <!-- ✅ Poem Title Clickable -->
+          <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="poem-link">
+            <h5 class="card-title mb-0">{{ poem.title }}</h5>
+          </a>
+          <!-- ✅ Star Button (Separate from Link) -->
+          <button class="favorite-btn" data-poem-id="{{ poem.id }}">
+            <span class="star-icon {% if poem in current_user.favorite_poems %}text-warning{% else %}text-secondary{% endif %}">
+              &#9733;
+            </span>
+          </button>
+        </div>        
+        <div class="card-text custom-poem-profile">
+          {{ poem.content | replace('\n', '<br>') | safe }}
+        </div>        
+        <div>
+        <p class="small text-muted">Type: {{ poem.poem_type or "N/A" }}</p>
+        {% if poem.tags %}
+          <div class="poem-tags-summary">
+            {% for tag in poem.tags %}
+            <a href="{{ url_for('search', q=tag.name) }}" class="tag-chip-link">
+              <span class="tag-chip-display">{{ tag.name }}</span>
+            </a>            
+            {% endfor %}
+          </div>
+        {% endif %}
+        </div>
+        <br>
+        <!-- Poem Actions (Edit, Delete, Visibility) on One Line -->
+        <div class="d-flex align-items-center">
+          <a href="{{ url_for('edit_poem', poem_id=poem.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+          <button class="btn btn-sm btn-outline-danger ms-2 delete-btn" data-type="poem" data-name="{{ poem.title }}" data-id="{{ poem.id }}">
+            &#128465;
+          </button>
+
+          <!-- Visibility Dropdown -->
+          <div class="ms-2">
+            <small class="text-muted">Visibility:</small>
+            <select class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updatePoemVisibility({{ poem.id }}, this.value)">
+              <option value="public" {% if poem.visibility == 'public' %}selected{% endif %}>Public</option>
+              <option value="private" {% if poem.visibility == 'private' %}selected{% endif %}>Private</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- View Comments Button (Placed on the Next Line) -->
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-primary view-comments-btn fav-button" data-bs-toggle="modal" data-bs-target="#commentsModal" data-poem-id="{{ poem.id }}">
+            View Comments
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p>You haven't added any poems yet.</p>
+  {% endfor %}
+</div>
+
+<!-- Comments Modal -->
+<div class="modal fade" id="commentsModal" tabindex="-1" aria-labelledby="commentsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Comments</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        <div id="commentsContainer">
+          <p class="text-muted">Loading comments...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Edit Description Modal -->
+<div class="modal fade" id="editDescriptionModal" tabindex="-1" aria-labelledby="editDescriptionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editDescriptionForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editDescriptionModalLabel">Edit Description</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <textarea class="form-control" id="descriptionInput" name="description" rows="3" placeholder="Enter a short description...">{{ current_user.description }}</textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary prf-add">Save Description</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Profile Image Modal -->
+<div class="modal fade" id="editProfileImageModal" tabindex="-1" aria-labelledby="editProfileImageModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editProfileImageForm" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editProfileImageModalLabel">Edit Profile Image</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="profileImageInput" class="form-label">Choose an image</label>
+            <input type="file" class="form-control" id="profileImageInput" name="profile_image" accept="image/*">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Image</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- New Collection Modal -->
+<div class="modal fade" id="newCollectionModal" tabindex="-1" aria-labelledby="newCollectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="newCollectionForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="newCollectionModalLabel">Create New Collection</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="collection_name" class="form-label">Collection Name</label>
+            <input type="text" class="form-control" id="collection_name" name="collection_name" required>
+          </div>
+          <div class="mb-3">
+            <label for="visibility" class="form-label">Visibility</label>
+            <select class="form-select" id="visibility" name="visibility">
+              <option value="public" selected>Public</option>
+              <option value="private">Private</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary prf-add">Create Collection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Collection Confirmation Modal -->
+<div class="modal fade" id="deleteCollectionModal" tabindex="-1" aria-labelledby="deleteCollectionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteCollectionModalLabel">Delete Collection</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        By deleting this collection you are deleting all the poems in this collection as well. Are you sure you want to delete this collection?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteCollectionBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Poem Confirmation Modal -->
+<div class="modal fade" id="deletePoemModal" tabindex="-1" aria-labelledby="deletePoemModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deletePoemModalLabel">Delete Poem</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to delete the poem: <strong id="deletePoemName"></strong>?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeletePoemBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Function to update description via AJAX
+  function updateDescription(newDescription) {
+    const formData = new FormData();
+    formData.append("description", newDescription);
+    fetch("/update_description", {
+      method: "POST",
+      body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+      if(data.status === "success"){
+        document.getElementById('user-description').innerHTML = data.description ? data.description : "<em>add description ...</em>";
+      } else {
+        alert("Error updating description: " + data.message);
+      }
+    })
+    .catch(error => console.error("Error:", error));
+  }
+
+  function updatePoemVisibility(poemId, newVisibility) {
+      console.log("poem entered")
+      fetch(`/update_poem_visibility/${poemId}`, {
+        method: "POST",
+        body: JSON.stringify({ visibility: newVisibility }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          console.log(`Poem ${poemId} visibility updated to ${data.visibility}`);
+        } else {
+          alert("Error updating visibility: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    }
+
+    function updateCollectionVisibility(collectionId, newVisibility) {
+      fetch(`/update_collection_visibility/${collectionId}`, {
+        method: "POST",
+        body: JSON.stringify({ visibility: newVisibility }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          console.log(`Collection ${collectionId} visibility updated to ${data.visibility}`);
+        } else {
+          alert("Error updating visibility: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    }
+
+  // Edit Description form submission
+  document.getElementById('editDescriptionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const newDesc = document.getElementById('descriptionInput').value;
+    updateDescription(newDesc);
+    const modalEl = document.getElementById('editDescriptionModal');
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if(modalInstance){
+      modalInstance.hide();
+    }
+  });
+
+  // Function to update profile image via AJAX
+  function updateProfileImage(formData) {
+    fetch("/update_profile_image", {
+      method: "POST",
+      body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+      if(data.status === "success"){
+        // Update the profile image in the DOM
+        const imgElem = document.querySelector("#profileImage");
+        if(imgElem){
+          imgElem.src = data.profile_image;
+        }
+      } else {
+        alert("Error updating profile image: " + data.message);
+      }
+    })
+    .catch(error => console.error("Error:", error));
+  }
+
+  // Edit Profile Image form submission
+  document.getElementById('editProfileImageForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    updateProfileImage(formData);
+    const modalEl = document.getElementById('editProfileImageModal');
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if(modalInstance){
+      modalInstance.hide();
+    }
+  });
+
+  // New Collection creation
+  document.getElementById('newCollectionForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
+    const formData = new FormData(form);
+    fetch("/create_collection", {
+      method: "POST",
+      body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+      if(data.status === "success"){
+        const flashDiv = document.getElementById('flash-message');
+        flashDiv.innerHTML = '<div class="alert alert-success" role="alert">' + data.message + '</div>';
+        const modalEl = document.getElementById('newCollectionModal');
+        let modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+        setTimeout(() => {
+          location.reload();
+        }, 1500);
+      } else {
+        const flashDiv = document.getElementById('flash-message');
+        flashDiv.innerHTML = '<div class="alert alert-danger" role="alert">Error: ' + data.message + '</div>';
+      }
+    })
+    .catch(error => console.error("Error:", error));
+  });
+
+  // Deletion handling for collections and poems in profile page
+  let collectionIdToDelete = null;
+  document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      if(this.dataset.type === "collection"){
+        collectionIdToDelete = this.dataset.id;
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteCollectionModal'));
+        deleteModal.show();
+      } else if(this.dataset.type === "poem"){
+        window.poemIdToDelete = this.dataset.id;
+        window.poemNameToDelete = this.dataset.name;
+        document.getElementById('deletePoemName').innerText = window.poemNameToDelete;
+        const poemDeleteModal = new bootstrap.Modal(document.getElementById('deletePoemModal'));
+        poemDeleteModal.show();
+      }
+    });
+  });
+
+  // Confirm deletion for collection
+  document.getElementById('confirmDeleteCollectionBtn').addEventListener('click', function() {
+    if(collectionIdToDelete){
+      const formData = new FormData();
+      formData.append("collection_id", collectionIdToDelete);
+      fetch("/delete_collection", {
+        method: "POST",
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.status === "success"){
+          window.location.href = "{{ url_for('profile') }}";
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    }
+  });
+
+  // Confirm deletion for poem
+  document.getElementById('confirmDeletePoemBtn').addEventListener('click', function() {
+    if(window.poemIdToDelete){
+      const formData = new FormData();
+      formData.append("poem_id", window.poemIdToDelete);
+      fetch("/delete_poem", {
+        method: "POST",
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.status === "success"){
+          const modalEl = document.getElementById('deletePoemModal');
+          let modalInstance = bootstrap.Modal.getInstance(modalEl);
+          if(modalInstance){
+            modalInstance.hide();
+          }
+          location.reload();
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    }
+  });
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".view-comments-btn").forEach(button => {
+      button.addEventListener("click", function () {
+        const poemId = this.getAttribute("data-poem-id");
+        const commentsContainer = document.getElementById("commentsContainer");
+        commentsContainer.innerHTML = "<p class='text-muted'>Loading comments...</p>";
+        
+        fetch(`/get_comments/${poemId}`)
+          .then(response => response.json())
+          .then(data => {
+            commentsContainer.innerHTML = "";
+            if (data.length === 0) {
+              commentsContainer.innerHTML = "<p class='text-muted'>No comments yet.</p>";
+              return;
+            }
+            
+            data.forEach(comment => {
+              const commentElement = document.createElement("div");
+              commentElement.classList.add("d-flex", "align-items-start", "mb-2");
+              commentElement.innerHTML = `
+                <img src="${comment.profile_image || '/static/default-profile.png'}" 
+                     alt="Profile Image" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                <div>
+                  <strong>${comment.username}</strong> 
+                  <p class="mb-0">${comment.text}</p>
+                  <small class="text-muted">${comment.created_at}</small>
+                </div>
+              `;
+              commentsContainer.appendChild(commentElement);
+            });
+          })
+          .catch(error => {
+            console.error("Error fetching comments:", error);
+            commentsContainer.innerHTML = "<p class='text-danger'>Failed to load comments.</p>";
+          });
+      });
+    });
+    document.querySelectorAll('.favorite-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const poemId = this.dataset.poemId;
+        fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            const starIcon = this.querySelector('.star-icon');
+            if (data.favorited) {
+              starIcon.classList.remove("text-secondary");
+              starIcon.classList.add("text-warning");
+            } else {
+              starIcon.classList.remove("text-warning");
+              starIcon.classList.add("text-secondary");
+            }
+          } else {
+            alert("Error: " + data.message);
+          }
+        })
+        .catch(error => console.error("Error:", error));
+      });
+    });
+  });
+// });
+</script>
+{% endblock %}

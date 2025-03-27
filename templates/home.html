@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center">
+  <h1>Welcome to PoetryVerse :)</h1>
+  <p>
+    Grow your poet network, workshop your poems, AND HAVE FUN !! ;) 
+  </p>
+  {% if current_user.is_authenticated %}
+    <a href="{{ url_for('add_poem') }}" class="btn btn-primary mt-3 add-button">Add Poem +</a>
+  {% else %}
+    <a href="{{ url_for('login') }}" class="btn btn-primary mt-3 prf-add">Log in to add your poems</a>
+  {% endif %}
+  <p>
+    <br><br>
+    Whether you are just getting started with poetry writing or you have experience under your belt, 
+    this platform is designed for you to get feedback on your poems and workshop your poems. 
+    <br><br>
+    If you are stuck and need brainstorming ideas, we have a prompts page, if you want to browse throguh examples
+    of poems in a certain structure, you can filter through your explore page. 
+  </p>
+</div>
+{% endblock %}

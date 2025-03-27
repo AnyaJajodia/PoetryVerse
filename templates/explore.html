@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Explore Poems</h2>
+  <div class="d-flex align-items-center filter-div">
+    <label for="filterType" class="me-2 mb-0" style="font-size: 0.9rem;">Filter by Type:</label>
+    <select id="filterType" class="form-select form-select-sm me-3" style="width: auto;">
+      <option value="all">All</option>
+    </select>
+    <label for="sortBy" class="me-2 mb-0" style="font-size: 0.9rem;">Sort by:</label>
+    <select id="sortBy" class="form-select form-select-sm me-3" style="width: auto;">
+      <option value="most_interacted">Most Interacted With</option>
+      <option value="old_to_new">New to Old</option>
+      <option value="new_to_old">Old to New</option>
+    </select>
+    <label for="filterTagInput" class="me-2 mb-0" style="font-size: 0.9rem;">Filter by Tags:</label>
+    <div style="position: relative; width: auto;">
+      <input type="text" id="filterTagInput" class="form-control form-control-sm" placeholder="Enter tag" autocomplete="off">
+      <div id="filter-tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Wrap the chips container and the apply filter button in a right-aligned div -->
+<div class="d-flex justify-content-end align-items-center mb-3">
+  <div id="filter-tag-chips" class="tag-chips-container me-2"></div>
+  <input type="hidden" id="filterTagsHidden" name="filter_tags">
+  <button id="applyTagFilterBtn" class="btn btn-sm btn-primary fav-button">Apply Filter</button>
+</div>
+
+
+<div class="list-group" id="poemList">
+  {% for poem in poems %}
+  <div class="list-group-item mb-3 custom-bg" 
+       data-poem-type="{{ poem.poem_type | default('') | lower }}"
+       data-poem-id="{{ poem.id }}"
+       data-comments="{{ poem.comments|length }}">
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <!-- Left Column: Author info, Poem Title and Type Button, then Content -->
+          <div class="col-md-6">
+            <!-- Author Identification (Clickable) -->
+            <div class="d-flex align-items-center mb-2">
+              <a href="{{ url_for('user_profile', user_id=poem.author.id) }}" class="d-flex align-items-center text-decoration-none text-dark">
+                {% if poem.author.profile_image %}
+                  <img src="{{ poem.author.profile_image }}" alt="Profile Image" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; object-position: center; margin-right: 0.5rem;">
+                {% else %}
+                  <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center" style="width: 40px; height: 40px; margin-right: 0.5rem;">
+                    <span class="text-white" style="font-size: 1rem;">?</span>
+                  </div>
+                {% endif %}
+                <span class="fw-bold">{{ poem.author.username }}</span>
+              </a>
+            </div>
+            <!-- Poem Title and Type -->
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex justify-content-between align-items-center poem-header">
+               <!-- ✅ Poem Title Clickable -->
+                <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="poem-link">
+                  <h5 class="card-title mb-0">{{ poem.title }}</h5>
+                </a>
+                <!-- ✅ Star Button (Separate from Link) -->
+                <button class="favorite-btn" data-poem-id="{{ poem.id }}">
+                  <span class="star-icon {% if poem in current_user.favorite_poems %}text-warning{% else %}text-secondary{% endif %}">
+                    &#9733;
+                  </span>
+                </button>
+              </div>              
+              {% if poem.poem_type %}
+              <div>
+                <small class="me-1">Type:</small>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.location.href='{{ url_for('explore') }}?type={{ poem.poem_type | lower }}'">
+                  {{ poem.poem_type }}
+                </button>
+              </div>
+              {% endif %}
+            </div>
+            <div class="poem-content-container">
+              <p class="card-text mt-2">{{ poem.content | replace('\n', '<br>') | safe }}</p>
+            </div>
+            <br>            
+            {% if poem.tags %}
+            <div class="poem-tags">
+              {% for tag in poem.tags %}
+              <a href="{{ url_for('search', q=tag.name) }}" class="tag-chip-link">
+                <span class="tag-chip-display">{{ tag.name }}</span>
+              </a>
+              {% endfor %}
+            </div>
+          {% endif %}
+          </div>
+          <!-- Right Column: Comment Form, Star Rating, and Scrollable Comments -->
+          <div class="col-md-6 d-flex flex-column" style="border-left: 1px solid #ddd;">
+            <!-- Comment Form with input group -->
+            <form class="add-comment-form" data-poem-id="{{ poem.id }}">
+              <div class="input-group mb-2">
+                <input type="text" class="form-control" name="comment" placeholder="Add a comment">
+                <button type="submit" class="btn btn-sm btn-outline-primary add-button-new">Submit</button>
+              </div>
+            </form>
+
+            <br>
+            <!-- Star Rating -->
+            <div class="rating mb-3" data-rating="{{ poem.rating }}" data-poem-id="{{ poem.id }}" style="padding-left: 15px;">
+              {% for i in range(1, 6) %}
+                <span class="star {% if i <= poem.rating %}text-warning{% else %}text-secondary{% endif %}" data-rating-value="{{ i }}">&#9733;</span>
+              {% endfor %}
+            </div>
+
+            <!-- Comments Section (Scrollable) -->
+            <div class="comments-container">
+              <h6>Comments:</h6>
+              <div class="comments-list">
+                {% set sorted_comments = poem.comments|sort(attribute='created_at', reverse=True) %}
+                {% for comment in sorted_comments %}
+                  {% if comment.is_edit_marker %}
+                    <hr>
+                    <p class="small text-center text-muted">{{ comment.text }}</p>
+                  {% else %}
+                    <p class="small d-flex align-items-start" id="comment-{{ comment.id }}">
+                      <a href="{{ url_for('user_profile', user_id=comment.author.id) }}" class="d-flex align-items-center text-decoration-none text-dark">
+                        {% if comment.author.profile_image %}
+                          <img src="{{ comment.author.profile_image }}" alt="Profile" class="comment-profile-img">
+                        {% else %}
+                          <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
+                            <span class="text-white">?</span>
+                          </div>
+                        {% endif %}
+                        <strong class="me-1">{{ comment.author.username }}</strong>
+                      </a>: {{ comment.text }}
+                      {% if current_user.is_authenticated and comment.user_id == current_user.id %}
+                        <button class="btn btn-link btn-sm delete-comment" data-comment-id="{{ comment.id }}">Delete</button>
+                      {% endif %}
+                    </p>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  
+document.addEventListener('DOMContentLoaded', function () {
+
+  // Tag filter functionality for the explore page
+  (function() {
+    const filterInput = document.getElementById('filterTagInput');
+    const filterChipsContainer = document.getElementById('filter-tag-chips');
+    const filterSuggestions = document.getElementById('filter-tag-suggestions');
+    const filterTagsHidden = document.getElementById('filterTagsHidden');
+    let filterTags = [];
+
+    // Function to apply filter by reloading page with URL parameter
+    function applyTagFilter() {
+      const filterQuery = filterTags.join(',');
+      const url = new URL(window.location.href);
+      if (filterQuery) {
+        url.searchParams.set('filter_tags', filterQuery);
+      } else {
+        url.searchParams.delete('filter_tags');
+      }
+      window.location.href = url.toString();
+    }
+
+    // Update hidden input (DOES NOT reload page)
+    function updateHiddenInput() {
+      filterTagsHidden.value = filterTags.join(',');
+    }
+
+    // Create a chip element without triggering a reload
+    function createFilterChip(tag) {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip-filter';
+      chip.textContent = tag;
+
+      const removeBtn = document.createElement('span');
+      removeBtn.className = 'remove-tag';
+      removeBtn.textContent = 'x';
+      removeBtn.onclick = function() {
+        filterChipsContainer.removeChild(chip);
+        filterTags = filterTags.filter(t => t !== tag);
+        updateHiddenInput();
+      };
+
+      chip.appendChild(removeBtn);
+      return chip;
+    }
+
+    // Add a tag to the filter (and update hidden input)
+    function addFilterTag(tag) {
+      if (tag && !filterTags.includes(tag)) {
+        filterTags.push(tag);
+        const chip = createFilterChip(tag);
+        filterChipsContainer.appendChild(chip);
+        updateHiddenInput();
+      }
+    }
+
+    // Listen for Enter/comma key to add a tag from input
+    filterInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const tag = filterInput.value.trim();
+        if (tag !== '') {
+          addFilterTag(tag);
+          filterInput.value = '';
+          filterSuggestions.style.display = 'none';
+        }
+      }
+    });
+
+    // Autocomplete functionality
+    filterInput.addEventListener('input', function() {
+      const query = filterInput.value.trim();
+      if (query.length > 0) {
+        fetch(`/autocomplete_tags?query=${query}`)
+          .then(response => response.json())
+          .then(data => {
+            filterSuggestions.innerHTML = '';
+            if (data.length > 0) {
+              data.forEach(suggestion => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-suggestion';
+                div.textContent = suggestion;
+                div.addEventListener('click', function() {
+                  addFilterTag(suggestion);
+                  filterInput.value = '';
+                  filterSuggestions.style.display = 'none';
+                });
+                filterSuggestions.appendChild(div);
+              });
+              filterSuggestions.style.display = 'block';
+            } else {
+              const div = document.createElement('div');
+              div.className = 'autocomplete-suggestion';
+              div.textContent = `Add "${query}"`;
+              div.addEventListener('click', function() {
+                addFilterTag(query);
+                filterInput.value = '';
+                filterSuggestions.style.display = 'none';
+              });
+              filterSuggestions.appendChild(div);
+              filterSuggestions.style.display = 'block';
+            }
+          });
+      } else {
+        filterSuggestions.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!filterInput.contains(e.target) && !filterSuggestions.contains(e.target)) {
+        filterSuggestions.style.display = 'none';
+      }
+    });
+
+    // Apply Filter button event listener
+    document.getElementById('applyTagFilterBtn').addEventListener('click', function() {
+      applyTagFilter();
+    });
+
+    // On page load, prepopulate chips if URL contains filter_tags
+    window.addEventListener('load', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const filterTagsParam = urlParams.get('filter_tags');
+      if (filterTagsParam) {
+        const tagsFromURL = filterTagsParam.split(',').map(t => t.trim()).filter(t => t);
+        // Populate our local filterTags array and chip container without reloading
+        tagsFromURL.forEach(tag => {
+          addFilterTag(tag);
+        });
+      }
+    });
+  })();
+
+  // Populate Filter Dropdown with Unique Poem Types
+  const filterSelect = document.getElementById('filterType');
+  const poemCards = document.querySelectorAll('#poemList .list-group-item.custom-bg');
+  const typesSet = new Set();
+  poemCards.forEach(card => {
+    const type = card.getAttribute('data-poem-type');
+    if(type && type.trim() !== "") {
+      typesSet.add(type);
+    }
+  });
+  const typesArray = Array.from(typesSet).sort();
+  typesArray.forEach(type => {
+    const option = document.createElement('option');
+    option.value = type;
+    option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    filterSelect.appendChild(option);
+  });
+
+  // Function to filter and sort poem cards
+  function updateDisplay() {
+    const selectedFilter = filterSelect.value;
+    const sortBy = document.getElementById('sortBy').value;
+    let cardsArray = Array.from(poemCards);
+    cardsArray.forEach(card => {
+      const type = card.getAttribute('data-poem-type');
+      if(selectedFilter === "all" || type === selectedFilter) {
+        card.style.display = "";
+      } else {
+        card.style.display = "none";
+      }
+    });
+    const visibleCards = cardsArray.filter(card => card.style.display !== "none");
+    visibleCards.sort((a, b) => {
+      if(sortBy === "most_interacted") {
+        return parseInt(b.getAttribute('data-comments')) - parseInt(a.getAttribute('data-comments'));
+      } else if(sortBy === "old_to_new") {
+        return parseInt(a.getAttribute('data-poem-id')) - parseInt(b.getAttribute('data-poem-id'));
+      } else if(sortBy === "new_to_old") {
+        return parseInt(b.getAttribute('data-poem-id')) - parseInt(a.getAttribute('data-poem-id'));
+      }
+    });
+    const poemList = document.getElementById('poemList');
+    visibleCards.forEach(card => poemList.appendChild(card));
+  }
+
+  filterSelect.addEventListener('change', updateDisplay);
+  document.getElementById('sortBy').addEventListener('change', updateDisplay);
+
+  document.querySelectorAll('.add-comment-form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const poemId = this.dataset.poemId;
+      const commentInput = this.querySelector('input[name="comment"]');
+      const commentText = commentInput.value.trim();
+      if(commentText === "") return;
+
+      const formData = new FormData();
+      formData.append("poem_id", poemId);
+      formData.append("comment", commentText);
+
+      fetch("/add_comment", {
+        method: "POST",
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.status === "success") {
+          const commentsList = this.closest('.col-md-6').querySelector('.comments-list');
+
+          // ✅ Check if a profile image exists, otherwise use default
+          let profileImageHtml = "";
+          if (data.profile_image) {
+            profileImageHtml = `<img src="${data.profile_image}" alt="Profile" class="comment-profile-img">`;
+          } else {
+            profileImageHtml = `
+              <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
+                <span class="text-white">?</span>
+              </div>`;
+          }
+
+          // ✅ Check if username exists, otherwise use "Unknown User"
+          const username = data.username ? data.username : "Unknown User";
+
+          // ✅ Create new comment dynamically
+          const newComment = document.createElement("p");
+          newComment.classList.add("small", "d-flex", "align-items-start");
+          newComment.id = 'comment-' + data.comment_id;
+          newComment.innerHTML = `
+            ${profileImageHtml}
+            <strong class="me-1">${username}</strong>: ${data.comment_text}
+            <button class="btn btn-link btn-sm delete-comment" data-comment-id="${data.comment_id}">Delete</button>
+          `;
+
+          // ✅ Insert the new comment at the top of the list
+          commentsList.insertBefore(newComment, commentsList.firstChild);
+
+          // ✅ Clear input field after submission
+          commentInput.value = "";
+
+          // ✅ Ensure the comments section scrolls to show the latest comment
+          commentsList.scrollTop = 0;
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    });
+  });
+
+  document.querySelectorAll('.favorite-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      const poemId = this.dataset.poemId;
+      fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          const starIcon = this.querySelector('.star-icon');
+          if (data.favorited) {
+            starIcon.classList.remove("text-secondary");
+            starIcon.classList.add("text-warning");
+          } else {
+            starIcon.classList.remove("text-warning");
+            starIcon.classList.add("text-secondary");
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    });
+  });
+
+  // ✅ Handle rating clicks ✅
+  document.querySelectorAll('.rating').forEach(ratingElem => {
+    ratingElem.addEventListener('click', function(e) {
+      if(e.target.classList.contains('star')) {
+        const selectedRating = e.target.dataset.ratingValue;
+        const poemId = this.dataset.poemId;
+        const formData = new FormData();
+        formData.append("poem_id", poemId);
+        formData.append("rating", selectedRating);
+        fetch("/rate_poem", {
+          method: "POST",
+          body: formData,
+        })
+        .then(response => response.json())
+        .then(data => {
+          if(data.status === "success") {
+            Array.from(ratingElem.children).forEach(star => {
+              const starRating = parseInt(star.dataset.ratingValue);
+              if(starRating <= data.rating) {
+                star.classList.remove("text-secondary");
+                star.classList.add("text-warning");
+              } else {
+                star.classList.remove("text-warning");
+                star.classList.add("text-secondary");
+              }
+            });
+          } else {
+            alert("Error: " + data.message);
+          }
+        })
+        .catch(error => console.error("Error:", error));
+      }
+    });
+  });
+
+  // ✅ Handle comment deletion via event delegation ✅
+  document.addEventListener('click', function(e) {
+    if(e.target && e.target.classList.contains('delete-comment')) {
+      const commentId = e.target.dataset.commentId;
+      const formData = new FormData();
+      formData.append("comment_id", commentId);
+      fetch("/delete_comment", {
+        method: "POST",
+        body: formData,
+      })
+      .then(response => response.json())
+      .then(data => {
+        if(data.status === "success"){
+          const commentElem = document.getElementById('comment-' + commentId);
+          if(commentElem){
+            commentElem.remove();
+          }
+        } else {
+          alert("Error: " + data.message);
+        }
+      })
+      .catch(error => console.error("Error:", error));
+    }
+  });
+});
+</script>
+{% endblock %}
+
+
