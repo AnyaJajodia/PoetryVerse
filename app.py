@@ -1,17 +1,21 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
+load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret_key'  # Use a secure key in production
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = "Please log in to access this page."
@@ -36,6 +40,12 @@ poem_tags = db.Table('poem_tags',
 followers = db.Table('followers',
     db.Column('follower_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
     db.Column('followed_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
+)
+
+# Association table for chat group members
+chat_group_members = db.Table('chat_group_members',
+    db.Column('group_id', db.Integer, db.ForeignKey('chat_group.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True)
 )
 
 # Relationship for following other users
@@ -111,6 +121,23 @@ class Comment(db.Model):
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
+
+class ChatGroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Many-to-many relationship with users
+    members = db.relationship('User', secondary=chat_group_members, backref=db.backref('chat_groups', lazy='dynamic'))
+    messages = db.relationship('Message', backref='chat_group', lazy='dynamic')
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    group_id = db.Column(db.Integer, db.ForeignKey('chat_group.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender = db.relationship('User', backref='sent_messages')
+    is_system = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -592,6 +619,109 @@ def unfollow(user_id):
     current_user.following.remove(user_to_unfollow)
     db.session.commit()
     return jsonify(status="success", message="Unfollowed.", following=False)
+
+
+# Route to view all chat groups
+@app.route('/chats')
+@login_required
+def chats():
+    groups = current_user.chat_groups.all()
+    return render_template('chats.html', groups=groups)
+
+# Route to view a specific chat group (conversation)
+@app.route('/chat_group/<int:group_id>')
+@login_required
+def chat_group(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        flash("You are not a member of that group.", "danger")
+        return redirect(url_for('chats'))
+    return render_template('chat_group.html', group=group)
+
+# Route to create a new chat group
+@app.route('/create_chat_group', methods=['GET', 'POST'])
+@login_required
+def create_chat_group():
+    if request.method == 'POST':
+        group_name = request.form.get('group_name')
+        member_ids = request.form.getlist('members')  # list of user IDs selected
+        if not group_name:
+            flash("Group name is required.", "danger")
+            return redirect(url_for('create_chat_group'))
+        group = ChatGroup(name=group_name)
+        group.members.append(current_user)  # add the creator
+        for uid in member_ids:
+            user = User.query.get(uid)
+            if user and user not in group.members:
+                group.members.append(user)
+        db.session.add(group)
+        db.session.commit()
+        flash("Chat group created!", "success")
+        return redirect(url_for('chats'))
+    # For GET, list all users except current_user
+    users = User.query.filter(User.id != current_user.id).all()
+    return render_template('create_chat_group.html', users=users)
+
+# Route to send a message to a chat group
+@app.route('/send_message/<int:group_id>', methods=['POST'])
+@login_required
+def send_message(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
+    content = request.form.get('message')
+    if not content:
+        return jsonify({'status': 'error', 'message': 'No message content provided.'}), 400
+    msg = Message(content=content, chat_group=group, sender=current_user)
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify({'status': 'success', 'message': 'Message sent.'})
+
+# Route to fetch messages for a chat group (for AJAX polling)
+@app.route('/get_messages/<int:group_id>')
+@login_required
+def get_messages(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
+    messages = group.messages.order_by(Message.timestamp.asc()).all()
+    messages_data = []
+    for msg in messages:
+        messages_data.append({
+            'id': msg.id,
+            'content': msg.content,
+            'timestamp': msg.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            'sender': msg.sender.username,
+            'sender_profile': msg.sender.profile_image if hasattr(msg.sender, 'profile_image') else None
+        })
+    return jsonify(messages_data)
+
+@app.route('/leave_group/<int:group_id>', methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'})
+    
+    try:
+        # Remove the user from the group members
+        group.members.remove(current_user)
+        
+        # Create a system message indicating the user left
+        system_message = Message(
+            content=f"{current_user.username} has left the group.",
+            chat_group=group,
+            sender=current_user,  # Optionally, you can use a system user; here we tag the user who left.
+            is_system=True
+        )
+        db.session.add(system_message)
+        db.session.commit()
+        
+        return jsonify({'status': 'success', 'message': 'Successfully left the group.'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)})
+
 
 
 

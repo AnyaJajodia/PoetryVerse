@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+  <!-- Left Column: Chat Groups List -->
+  <div class="col-md-4">
+    <h3>Your Chat Groups</h3>
+    <ul class="list-group" id="chatGroupList">
+      {% for group in groups %}
+      <li class="list-group-item d-flex justify-content-between align-items-center chat-group-item" 
+          data-group-id="{{ group.id }}" 
+          data-group-name="{{ group.name }}"
+          style="cursor: pointer;">
+        <span class="group-name" onclick="loadChatGroup({{ group.id }}, '{{ group.name }}')">
+          {{ group.name }}
+        </span>
+        <button class="btn btn-sm btn-outline-danger leave-group-btn" 
+                data-group-id="{{ group.id }}" 
+                data-group-name="{{ group.name }}">
+          Leave
+        </button>
+      </li>
+      {% else %}
+      <li class="list-group-item">You have no chat groups.</li>
+      {% endfor %}
+    </ul>
+    <br>
+    <a href="{{ url_for('create_chat_group') }}" class="btn btn-primary">Create New Chat Group</a>
+  </div>
+  
+  <!-- Right Column: Chat Conversation Area -->
+  <div class="col-md-8">
+    <div id="chatArea">
+      <h3>Select a chat group to view messages</h3>
+      <p>Click on a group from the list on the left.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Group Confirmation Modal -->
+<div class="modal fade" id="leaveGroupModal" tabindex="-1" aria-labelledby="leaveGroupModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="leaveGroupModalLabel">Leave Chat Group</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        By leaving this group, you will lose access to all its messages and content. This action cannot be undone.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmLeaveGroupBtn">Leave Group</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flash Message Container -->
+<div id="flashMessage" style="position: fixed; top: 10px; right: 10px; z-index: 9999;"></div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+var currentUsername = "{{ current_user.username }}";
+var leaveGroupId = null;
+var leaveGroupName = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Define and expose loadChatGroup globally so inline onclick can use it.
+  window.loadChatGroup = function(groupId, groupName) {
+    fetch(`/get_messages/${groupId}`)
+      .then(response => response.json())
+      .then(data => {
+        const chatArea = document.getElementById('chatArea');
+        chatArea.setAttribute('data-group-id', groupId);
+        let html = `<h3>${groupName}</h3>`;
+        html += `<div id="messagesContainer" style="height:400px; overflow-y:scroll; border:1px solid #ccc; padding:10px;">`;
+        
+        if(data.length === 0){
+          html += `<p>No messages yet.</p>`;
+        } else {
+          let lastSender = null;
+          data.forEach(msg => {
+            // If this is a system message, display it centered with special style.
+            if(msg.is_system){
+              html += `<div class="text-center text-muted mb-2" style="font-style: italic;">${msg.content}</div>`;
+            } else if(msg.sender === currentUsername) {
+              // Message from current user: right-aligned, green background, no profile pic/username.
+              if(lastSender !== currentUsername){
+                html += `
+                  <div class="d-flex justify-content-end mb-2">
+                    <div>
+                      <div class="chat-bubble" style="padding:10px; background-color:#d1ffd1; border-radius:15px; display:inline-block;">
+                        ${msg.content}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              } else {
+                html += `
+                  <div class="d-flex justify-content-end mb-2">
+                    <div class="ms-5">
+                      <div class="chat-bubble" style="padding:10px; background-color:#d1ffd1; border-radius:15px; display:inline-block;">
+                        ${msg.content}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+            } else {
+              // Message from another user: show profile pic, username above the bubble.
+              const profilePic = msg.sender_profile ? msg.sender_profile : '/static/default-profile.png';
+              if(msg.sender !== lastSender){
+                html += `
+                  <div class="d-flex mb-2" style="align-items: flex-start;">
+                    <div style="margin-right: 8px; margin-top: 8px;">
+                      <img src="${profilePic}" alt="Profile" class="rounded-circle" style="width:40px; height:40px; object-fit:cover;">
+                    </div>
+                    <div>
+                      <div style="font-size: 0.8rem; color:#555; margin-bottom:2px;">${msg.sender}</div>
+                      <div class="chat-bubble" style="padding:10px; background-color:#f1f0f0; border-radius:15px; display:inline-block;">
+                        ${msg.content}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              } else {
+                html += `
+                  <div class="ms-5 mb-2">
+                    <div class="chat-bubble" style="padding:10px; background-color:#f1f0f0; border-radius:15px; display:inline-block;">
+                      ${msg.content}
+                    </div>
+                  </div>
+                `;
+              }
+            }
+            lastSender = msg.sender;
+          });
+        }
+        html += `</div>`;  // End of messagesContainer
+        
+        // Message form for sending new messages
+        html += `
+          <form id="sendMessageForm">
+            <div class="input-group mt-2">
+              <input type="text" class="form-control" id="messageInput" placeholder="Type your message">
+              <button type="submit" class="btn btn-primary">Send</button>
+            </div>
+          </form>
+        `;
+        chatArea.innerHTML = html;
+
+        // Scroll to the bottom of messages
+        const messagesContainer = document.getElementById('messagesContainer');
+        if (messagesContainer) {
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Attach submit event to the send message form
+        document.getElementById('sendMessageForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const messageInput = document.getElementById('messageInput');
+          const message = messageInput.value.trim();
+          if (!message) return;
+          const formData = new FormData();
+          formData.append('message', message);
+          fetch(`/send_message/${groupId}`, {
+            method: 'POST',
+            body: formData
+          })
+            .then(resp => resp.json())
+            .then(resData => {
+              if (resData.status === 'success') {
+                messageInput.value = '';
+                window.loadChatGroup(groupId, groupName);
+              } else {
+                alert("Error sending message: " + resData.message);
+              }
+            })
+            .catch(err => console.error("Error sending message:", err));
+        });
+      })
+      .catch(error => console.error("Error loading messages:", error));
+  };
+
+  // Attach event listeners to "Leave Group" buttons
+  document.querySelectorAll('.leave-group-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.stopPropagation();
+      leaveGroupId = this.getAttribute('data-group-id');
+      leaveGroupName = this.getAttribute('data-group-name');
+      const leaveModal = new bootstrap.Modal(document.getElementById('leaveGroupModal'));
+      leaveModal.show();
+    });
+  });
+
+  // Leave group confirmation button event
+  document.getElementById('confirmLeaveGroupBtn').addEventListener('click', function() {
+    fetch(`/leave_group/${leaveGroupId}`, { method: 'POST' })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Remove the group from the left column
+          const groupItem = document.querySelector(`.chat-group-item[data-group-id="${leaveGroupId}"]`);
+          if (groupItem) {
+            groupItem.remove();
+          }
+          // If the current chat area is showing this group, reset it
+          const chatArea = document.getElementById('chatArea');
+          if (chatArea.getAttribute('data-group-id') === leaveGroupId) {
+            chatArea.innerHTML = `
+              <h3>Select a chat group to view messages</h3>
+              <p>Click on a group from the list on the left.</p>
+            `;
+          }
+          showFlashMessage(`Successfully left group ${leaveGroupName}`, "success");
+          const leaveModalEl = document.getElementById('leaveGroupModal');
+          const leaveModal = bootstrap.Modal.getInstance(leaveModalEl);
+          if (leaveModal) leaveModal.hide();
+        } else {
+          alert("Error leaving group: " + data.message);
+        }
+      })
+      .catch(err => console.error("Error leaving group:", err));
+  });
+
+  // Function to display flash messages for 3 seconds
+  function showFlashMessage(message, category) {
+    const flashDiv = document.getElementById('flashMessage');
+    flashDiv.innerHTML = `<div class="alert alert-${category}" role="alert">${message}</div>`;
+    setTimeout(() => {
+      flashDiv.innerHTML = "";
+    }, 3000);
+  }
+
+});
+</script>
+{% endblock %}

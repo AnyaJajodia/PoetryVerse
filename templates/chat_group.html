@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>{{ group.name }}</h3>
+<div id="chatMessages" style="height:400px; overflow-y:scroll; border:1px solid #ccc; padding:10px;">
+  <!-- Chat messages will load here via AJAX -->
+</div>
+<form id="sendMessageForm">
+  <div class="input-group mt-2">
+    <input type="text" class="form-control" id="messageInput" placeholder="Type your message">
+    <button type="submit" class="btn btn-primary">Send</button>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    function loadMessages() {
+        fetch('{{ url_for("get_messages", group_id=group.id) }}')
+        .then(response => response.json())
+        .then(data => {
+            let chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+            data.forEach(function(msg){
+                chatMessages.innerHTML += `<p><strong>${msg.sender}</strong>: ${msg.content} <small>${msg.timestamp}</small></p>`;
+            });
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        })
+        .catch(error => console.error("Error loading messages:", error));
+    }
+    loadMessages();
+    // Auto-refresh messages every 5 seconds
+    setInterval(loadMessages, 5000);
+    document.getElementById('sendMessageForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        let messageInput = document.getElementById('messageInput');
+        let message = messageInput.value;
+        if(message.trim() === '') return;
+        let formData = new FormData();
+        formData.append('message', message);
+        fetch('{{ url_for("send_message", group_id=group.id) }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success'){
+                messageInput.value = '';
+                loadMessages();
+            } else {
+                alert("Error sending message: " + data.message);
+            }
+        })
+        .catch(error => console.error("Error sending message:", error));
+    });
+});
+</script>
+{% endblock %}
