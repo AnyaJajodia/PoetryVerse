@@ -10,7 +10,7 @@
           data-group-id="{{ group.id }}" 
           data-group-name="{{ group.name }}"
           style="cursor: pointer;">
-        <span class="group-name" onclick="loadChatGroup({{ group.id }}, '{{ group.name }}')">
+        <span class="group-name custom-group-name" onclick="loadChatGroup({{ group.id }}, '{{ group.name }}')">
           {{ group.name }}
         </span>
         <button class="btn btn-sm btn-outline-danger leave-group-btn" 
@@ -24,7 +24,10 @@
       {% endfor %}
     </ul>
     <br>
-    <a href="{{ url_for('create_chat_group') }}" class="btn btn-primary">Create New Chat Group</a>
+    <!-- Button to trigger Create Chat Group Modal -->
+    <button type="button" class="btn btn-primary prf-add" data-bs-toggle="modal" data-bs-target="#createChatModal">
+      Create New Chat Group
+    </button>
   </div>
   
   <!-- Right Column: Chat Conversation Area -->
@@ -55,21 +58,101 @@
   </div>
 </div>
 
+<!-- Create Chat Group Modal -->
+<div class="modal fade" id="createChatModal" tabindex="-1" aria-labelledby="createChatModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="justify-content: flex-start;">
+        <!-- Close button on top left -->
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="margin-right: auto;"></button>
+        <h5 class="modal-title" id="createChatModalLabel">Create a New Chat Group</h5>
+      </div>
+      <div class="modal-body">
+        <form id="createChatGroupForm" method="post" action="{{ url_for('create_chat_group') }}">
+          <div class="mb-3">
+            <label for="group_name" class="form-label">Group Name</label>
+            <input type="text" class="form-control" id="group_name" name="group_name" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Select Members</label>
+            <div>
+              {% for user in available_users %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="members" id="user_{{ user.id }}" value="{{ user.id }}">
+                <label class="form-check-label" for="user_{{ user.id }}">{{ user.username }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Create Group</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Group Name Modal -->
+<div class="modal fade" id="editGroupNameModal" tabindex="-1" aria-labelledby="editGroupNameModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editGroupNameModalLabel">Edit Group Name</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editGroupNameForm">
+          <div class="mb-3">
+            <label for="newGroupName" class="form-label">Group Name</label>
+            <input type="text" class="form-control" id="newGroupName" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Group Members Modal -->
+<div class="modal fade" id="editGroupMembersModal" tabindex="-1" aria-labelledby="editGroupMembersModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editGroupMembersModalLabel">Edit Group Members</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editGroupMembersForm">
+          <div class="mb-3" id="membersCheckboxes">
+            <!-- Checkboxes will be populated via JS -->
+          </div>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Flash Message Container -->
 <div id="flashMessage" style="position: fixed; top: 10px; right: 10px; z-index: 9999;"></div>
 {% endblock %}
 
-
 {% block scripts %}
 <script>
+// Global variable to store current group details
+window.currentGroup = null;
+// availableUsers is passed as JSON-serializable data
+var availableUsers = {{ available_users|tojson }};
 var currentUsername = "{{ current_user.username }}";
 var leaveGroupId = null;
 var leaveGroupName = null;
 
 document.addEventListener('DOMContentLoaded', function() {
 
-  // Define and expose loadChatGroup globally so inline onclick can use it.
+  // Define loadChatGroup globally so inline onclick can use it.
   window.loadChatGroup = function(groupId, groupName) {
+    // First, load messages
     fetch(`/get_messages/${groupId}`)
       .then(response => response.json())
       .then(data => {
@@ -83,16 +166,15 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           let lastSender = null;
           data.forEach(msg => {
-            // If this is a system message, display it centered with special style.
             if(msg.is_system){
               html += `<div class="text-center text-muted mb-2" style="font-style: italic;">${msg.content}</div>`;
             } else if(msg.sender === currentUsername) {
-              // Message from current user: right-aligned, green background, no profile pic/username.
+              // Current user's message: blue bubble
               if(lastSender !== currentUsername){
                 html += `
                   <div class="d-flex justify-content-end mb-2">
                     <div>
-                      <div class="chat-bubble" style="padding:10px; background-color:#d1ffd1; border-radius:15px; display:inline-block;">
+                      <div class="chat-bubble user-message">
                         ${msg.content}
                       </div>
                     </div>
@@ -102,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += `
                   <div class="d-flex justify-content-end mb-2">
                     <div class="ms-5">
-                      <div class="chat-bubble" style="padding:10px; background-color:#d1ffd1; border-radius:15px; display:inline-block;">
+                      <div class="chat-bubble user-message">
                         ${msg.content}
                       </div>
                     </div>
@@ -110,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
               }
             } else {
-              // Message from another user: show profile pic, username above the bubble.
+              // Other user's message: grey bubble
               const profilePic = msg.sender_profile ? msg.sender_profile : '/static/default-profile.png';
               if(msg.sender !== lastSender){
                 html += `
@@ -120,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     <div>
                       <div style="font-size: 0.8rem; color:#555; margin-bottom:2px;">${msg.sender}</div>
-                      <div class="chat-bubble" style="padding:10px; background-color:#f1f0f0; border-radius:15px; display:inline-block;">
+                      <div class="chat-bubble other-message">
                         ${msg.content}
                       </div>
                     </div>
@@ -129,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else {
                 html += `
                   <div class="ms-5 mb-2">
-                    <div class="chat-bubble" style="padding:10px; background-color:#f1f0f0; border-radius:15px; display:inline-block;">
+                    <div class="chat-bubble other-message">
                       ${msg.content}
                     </div>
                   </div>
@@ -139,26 +221,67 @@ document.addEventListener('DOMContentLoaded', function() {
             lastSender = msg.sender;
           });
         }
-        html += `</div>`;  // End of messagesContainer
+        html += `</div>`;  // End messagesContainer
         
         // Message form for sending new messages
         html += `
           <form id="sendMessageForm">
             <div class="input-group mt-2">
               <input type="text" class="form-control" id="messageInput" placeholder="Type your message">
-              <button type="submit" class="btn btn-primary">Send</button>
+              <button type="submit" class="btn btn-primary prf-add-new">Send</button>
             </div>
           </form>
         `;
+        
+        // Group Details dropdown section
+        html += `
+          <div class="mt-3">
+            <button class="btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#groupDetails" aria-expanded="false" aria-controls="groupDetails">
+              Details
+            </button>
+            <div class="collapse" id="groupDetails">
+              <div class="card card-body mt-2">
+                <div class="mb-2">
+                  <strong>Group Name:</strong>
+                  <span id="groupNameDisplay"></span>
+                  <button class="btn btn-link btn-sm" id="openEditGroupNameBtn">Edit</button>
+                </div>
+                <div class="mb-2">
+                  <strong>Created:</strong>
+                  <span id="groupCreatedDisplay"></span>
+                </div>
+                <div class="mb-2">
+                  <strong>Group Members:</strong>
+                  <ul id="groupMembersList" class="list-group">
+                  </ul>
+                  <button class="btn btn-link btn-sm" id="openEditGroupMembersBtn">Edit Members</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
         chatArea.innerHTML = html;
-
-        // Scroll to the bottom of messages
+        
+        // Now, update group details by calling the new endpoint.
+        fetch(`/get_group_details/${groupId}`)
+          .then(resp => resp.json())
+          .then(detailsData => {
+            if(detailsData.status === 'success'){
+              window.currentGroup = detailsData.group;
+              updateGroupDetails(window.currentGroup);
+            } else {
+              alert("Error: " + detailsData.message);
+            }
+          });
+        
+        // Scroll messages container to bottom
         const messagesContainer = document.getElementById('messagesContainer');
         if (messagesContainer) {
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-
-        // Attach submit event to the send message form
+        
+        // Attach event for send message form
         document.getElementById('sendMessageForm').addEventListener('submit', function(e) {
           e.preventDefault();
           const messageInput = document.getElementById('messageInput');
@@ -170,54 +293,71 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
           })
-            .then(resp => resp.json())
-            .then(resData => {
-              if (resData.status === 'success') {
-                messageInput.value = '';
-                window.loadChatGroup(groupId, groupName);
-              } else {
-                alert("Error sending message: " + resData.message);
-              }
-            })
-            .catch(err => console.error("Error sending message:", err));
+          .then(resp => resp.json())
+          .then(resData => {
+            if (resData.status === 'success') {
+              messageInput.value = '';
+              window.loadChatGroup(groupId, groupName);
+            } else {
+              alert("Error sending message: " + resData.message);
+            }
+          })
+          .catch(err => console.error("Error sending message:", err));
+        });
+        
+        // Attach event listeners for modal open buttons (attach after details HTML is inserted)
+        document.getElementById('openEditGroupNameBtn').addEventListener('click', function() {
+          var modal = new bootstrap.Modal(document.getElementById('editGroupNameModal'));
+          document.getElementById('newGroupName').value = window.currentGroup.name;
+          modal.show();
+        });
+        
+        document.getElementById('openEditGroupMembersBtn').addEventListener('click', function() {
+          var modal = new bootstrap.Modal(document.getElementById('editGroupMembersModal'));
+          // Populate checkboxes based on availableUsers and current group members
+          const container = document.getElementById('membersCheckboxes');
+          container.innerHTML = "";
+          availableUsers.forEach(user => {
+            const isMember = window.currentGroup.members.some(m => m.id === user.id);
+            const div = document.createElement('div');
+            div.className = "form-check";
+            div.innerHTML = `
+              <input class="form-check-input" type="checkbox" name="members" id="modal_user_${user.id}" value="${user.id}" ${isMember ? "checked" : ""}>
+              <label class="form-check-label" for="modal_user_${user.id}">${user.username}</label>
+            `;
+            container.appendChild(div);
+          });
+          modal.show();
         });
       })
       .catch(error => console.error("Error loading messages:", error));
   };
 
-  // Attach event listeners to "Leave Group" buttons
+  // Leave Group button events
   document.querySelectorAll('.leave-group-btn').forEach(button => {
     button.addEventListener('click', function(e) {
       e.stopPropagation();
       leaveGroupId = this.getAttribute('data-group-id');
       leaveGroupName = this.getAttribute('data-group-name');
-      const leaveModal = new bootstrap.Modal(document.getElementById('leaveGroupModal'));
+      var leaveModal = new bootstrap.Modal(document.getElementById('leaveGroupModal'));
       leaveModal.show();
     });
   });
-
-  // Leave group confirmation button event
+  
   document.getElementById('confirmLeaveGroupBtn').addEventListener('click', function() {
     fetch(`/leave_group/${leaveGroupId}`, { method: 'POST' })
       .then(response => response.json())
       .then(data => {
         if (data.status === 'success') {
-          // Remove the group from the left column
           const groupItem = document.querySelector(`.chat-group-item[data-group-id="${leaveGroupId}"]`);
-          if (groupItem) {
-            groupItem.remove();
-          }
-          // If the current chat area is showing this group, reset it
+          if (groupItem) { groupItem.remove(); }
           const chatArea = document.getElementById('chatArea');
           if (chatArea.getAttribute('data-group-id') === leaveGroupId) {
-            chatArea.innerHTML = `
-              <h3>Select a chat group to view messages</h3>
-              <p>Click on a group from the list on the left.</p>
-            `;
+            chatArea.innerHTML = `<h3>Select a chat group to view messages</h3><p>Click on a group from the list on the left.</p>`;
           }
           showFlashMessage(`Successfully left group ${leaveGroupName}`, "success");
-          const leaveModalEl = document.getElementById('leaveGroupModal');
-          const leaveModal = bootstrap.Modal.getInstance(leaveModalEl);
+          var leaveModalEl = document.getElementById('leaveGroupModal');
+          var leaveModal = bootstrap.Modal.getInstance(leaveModalEl);
           if (leaveModal) leaveModal.hide();
         } else {
           alert("Error leaving group: " + data.message);
@@ -225,16 +365,82 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .catch(err => console.error("Error leaving group:", err));
   });
-
-  // Function to display flash messages for 3 seconds
+  
   function showFlashMessage(message, category) {
     const flashDiv = document.getElementById('flashMessage');
     flashDiv.innerHTML = `<div class="alert alert-${category}" role="alert">${message}</div>`;
-    setTimeout(() => {
-      flashDiv.innerHTML = "";
-    }, 3000);
+    setTimeout(() => { flashDiv.innerHTML = ""; }, 3000);
   }
-
+  
+  // Update the details section based on the current group object.
+  function updateGroupDetails(group) {
+    document.getElementById('groupNameDisplay').textContent = group.name;
+    document.getElementById('groupCreatedDisplay').textContent = group.created_at;
+    const membersList = document.getElementById('groupMembersList');
+    membersList.innerHTML = "";
+    if(group.members && group.members.length > 0) {
+      group.members.forEach(member => {
+        const li = document.createElement('li');
+        li.className = "list-group-item";
+        li.textContent = member.username;
+        li.setAttribute('data-user-id', member.id);
+        membersList.appendChild(li);
+      });
+    } else {
+      membersList.innerHTML = "<li class='list-group-item'>No members listed.</li>";
+    }
+  }
+  
+  // Handle Edit Group Name Form submission
+  document.getElementById('editGroupNameForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const newName = document.getElementById('newGroupName').value.trim();
+    if (!newName) {
+      alert("Group name cannot be empty.");
+      return;
+    }
+    fetch(`/update_group_name/${window.currentGroup.id}`, {
+      method: 'POST',
+      body: new URLSearchParams({ group_name: newName })
+    })
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.status === 'success') {
+        window.currentGroup.name = data.group_name;
+        updateGroupDetails(window.currentGroup);
+        var modalEl = document.getElementById('editGroupNameModal');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+      } else {
+        alert("Error: " + data.message);
+      }
+    })
+    .catch(err => console.error(err));
+  });
+  
+  // Handle Edit Group Members Form submission
+  document.getElementById('editGroupMembersForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    fetch(`/update_group_members/${window.currentGroup.id}`, {
+      method: 'POST',
+      body: formData
+    })
+    .then(resp => resp.json())
+    .then(data => {
+      if (data.status === 'success') {
+        window.currentGroup.members = data.members;
+        updateGroupDetails(window.currentGroup);
+        var modalEl = document.getElementById('editGroupMembersModal');
+        var modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+      } else {
+        alert("Error: " + data.message);
+      }
+    })
+    .catch(err => console.error(err));
+  });
+  
 });
 </script>
 {% endblock %}

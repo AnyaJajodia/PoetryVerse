@@ -626,7 +626,10 @@ def unfollow(user_id):
 @login_required
 def chats():
     groups = current_user.chat_groups.all()
-    return render_template('chats.html', groups=groups)
+    # Only include users who follow the current user
+    users = current_user.followers.all()
+    available_users = [{'id': user.id, 'username': user.username} for user in users]
+    return render_template('chats.html', groups=groups, available_users=available_users)
 
 # Route to view a specific chat group (conversation)
 @app.route('/chat_group/<int:group_id>')
@@ -642,25 +645,21 @@ def chat_group(group_id):
 @app.route('/create_chat_group', methods=['GET', 'POST'])
 @login_required
 def create_chat_group():
-    if request.method == 'POST':
-        group_name = request.form.get('group_name')
-        member_ids = request.form.getlist('members')  # list of user IDs selected
-        if not group_name:
-            flash("Group name is required.", "danger")
-            return redirect(url_for('create_chat_group'))
-        group = ChatGroup(name=group_name)
-        group.members.append(current_user)  # add the creator
-        for uid in member_ids:
-            user = User.query.get(uid)
-            if user and user not in group.members:
-                group.members.append(user)
-        db.session.add(group)
-        db.session.commit()
-        flash("Chat group created!", "success")
+    group_name = request.form.get('group_name')
+    member_ids = request.form.getlist('members')  # list of selected user IDs
+    if not group_name:
+        flash("Group name is required.", "danger")
         return redirect(url_for('chats'))
-    # For GET, list all users except current_user
-    users = User.query.filter(User.id != current_user.id).all()
-    return render_template('create_chat_group.html', users=users)
+    group = ChatGroup(name=group_name)
+    group.members.append(current_user)  # add the creator
+    for uid in member_ids:
+        user = User.query.get(uid)
+        if user and user not in group.members:
+            group.members.append(user)
+    db.session.add(group)
+    db.session.commit()
+    flash("Chat group created!", "success")
+    return redirect(url_for('chats'))
 
 # Route to send a message to a chat group
 @app.route('/send_message/<int:group_id>', methods=['POST'])
@@ -722,6 +721,57 @@ def leave_group(group_id):
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)})
 
+# New endpoint to fetch group details (including members and creation date)
+@app.route('/get_group_details/<int:group_id>')
+@login_required
+def get_group_details(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
+    group_details = {
+        'id': group.id,
+        'name': group.name,
+        'created_at': group.created_at.strftime("%Y-%m-%d %H:%M:%S") if group.created_at else "",
+        'members': [{'id': m.id, 'username': m.username} for m in group.members]
+    }
+    return jsonify({'status': 'success', 'group': group_details})
+
+
+# Route to update the group name via AJAX
+@app.route('/update_group_name/<int:group_id>', methods=['POST'])
+@login_required
+def update_group_name(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
+    new_name = request.form.get('group_name')
+    if not new_name:
+        return jsonify({'status': 'error', 'message': 'Group name cannot be empty.'}), 400
+    group.name = new_name
+    db.session.commit()
+    return jsonify({'status': 'success', 'group_name': new_name})
+
+
+# Route to update group members via AJAX
+@app.route('/update_group_members/<int:group_id>', methods=['POST'])
+@login_required
+def update_group_members(group_id):
+    group = ChatGroup.query.get_or_404(group_id)
+    if current_user not in group.members:
+        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
+    # Expect a list of user IDs (strings) sent as form data under 'members'
+    member_ids = request.form.getlist('members')
+    # Always keep the current user in the group
+    new_members = [current_user]
+    for uid in member_ids:
+        user = User.query.get(uid)
+        if user and user not in new_members:
+            new_members.append(user)
+    group.members = new_members
+    db.session.commit()
+    # Prepare a simple list of updated member info
+    members_data = [{'id': m.id, 'username': m.username} for m in group.members]
+    return jsonify({'status': 'success', 'members': members_data})
 
 
 

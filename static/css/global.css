@@ -206,7 +206,7 @@ li.custom-list-item a:active {
   color: #333652;
 }
 .fav-button:hover {
-  background-color: rgba(250, 208, 44, 0.4);;
+  background-color: rgba(250, 208, 44, 0.4) !important;
   color: #333652;
   border: 2px solid #333652;
 }
@@ -405,4 +405,48 @@ li.custom-list-item a:active {
   font-size: 10px;
   font-weight: lighter !important;
   color: #90adc6;
+}
+
+
+.custom-group-name {
+  color: #333652;
+  text-decoration: underline;
+}
+.custom-group-name:hover{
+  color: #90adc6;
+  text-decoration: underline;
+}
+
+/* Common styling for chat bubbles */
+.chat-bubble {
+  padding: 10px;
+  border-radius: 15px;
+  display: inline-block;
+  word-wrap: break-word;
+  border: 1px solid white;
+}
+
+/* Current user's message bubble (blue) */
+.chat-bubble.user-message {
+  max-width: 100%;
+  background-color: #333652; /* Light blue background */
+  color: #e9eaec;
+}
+
+/* Other users' message bubble (grey) */
+.chat-bubble.other-message {
+  max-width: 100%;
+  background-color: rgba(144, 173, 198, 0.7); /* Light blue background */
+  color: #333652;        
+}
+
+.prf-add-new {
+  background-color: #333652;
+  color: #e9eaec;
+  border: 2px solid #333652;
+}
+.prf-add-new:hover {
+  background-color: #e9eaec;
+  border: 2px solid #333652;
+  color: #333652;
 }
