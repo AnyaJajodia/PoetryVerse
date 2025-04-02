@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -695,6 +696,29 @@ def get_messages(group_id):
         })
     return jsonify(messages_data)
 
+# @socketio.on('join')
+# def on_join(data):
+#     room = data['group_id']
+#     join_room(room)
+#     emit('status', {'msg': f"{data['username']} has entered the room."}, room=room)
+
+# @socketio.on('typing')
+# def on_typing(data):
+#     room = data['group_id']
+#     emit('typing', {'username': data['username']}, room=room)
+
+# @socketio.on('stop_typing')
+# def on_stop_typing(data):
+#     room = data['group_id']
+#     emit('stop_typing', {'username': data['username']}, room=room)
+
+# @socketio.on('new_message')
+# def on_new_message(data):
+#     room = data['group_id']
+#     # You may process and store the message here, then broadcast:
+#     emit('new_message', data, room=room)
+
+
 @app.route('/leave_group/<int:group_id>', methods=['POST'])
 @login_required
 def leave_group(group_id):
@@ -826,5 +850,5 @@ def logout():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run()
 
