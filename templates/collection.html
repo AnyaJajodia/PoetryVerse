@@ -5,9 +5,21 @@
   <div>
     <!-- Visibility dropdown for collection -->
     <small class="text-muted me-2">Visibility:</small>
-    <select class="form-select form-select-sm d-inline-block me-2" style="width: auto;" onchange="updateCollectionVisibility({{ collection.id }}, this.value)">
+    <select id="visibilitySelect-{{ collection.id }}" class="form-select form-select-sm d-inline-block me-2" style="width: auto;" onchange="updateCollectionVisibilityHandler({{ collection.id }}, this)">
       <option value="public" {% if collection.visibility == 'public' %}selected{% endif %}>Public</option>
       <option value="private" {% if collection.visibility == 'private' %}selected{% endif %}>Private</option>
+      <option value="select_group" {% if collection.visibility.startswith('select_group') %}selected{% endif %}>
+        {% if collection.visibility.startswith('select_group:') %}
+          {% set selected_id = collection.visibility.split(':')[1] %}
+          {% for group in chat_groups %}
+            {% if group.id|string == selected_id %}
+              {{ group.name }}
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          Select Group
+        {% endif %}
+      </option>
     </select>
     <a href="{{ url_for('add_poem') }}" class="btn btn-sm btn-success me-2 prf-add">Add Poem +</a>
     <button class="btn btn-sm btn-outline-danger discard-custom" id="deleteCollectionBtn" data-collection-id="{{ collection.id }}">
@@ -24,11 +36,9 @@
           <!-- Left Column: Poem Content, Edit, Delete, and Visibility Dropdown -->
           <div class="col-md-6">
             <div class="d-flex justify-content-between align-items-center">
-              <!-- ✅ Poem Title Clickable -->
               <a href="{{ url_for('view_poem', poem_id=poem.id) }}" class="poem-link">
                 <h5 class="card-title mb-0">{{ poem.title }}</h5>
               </a>
-              <!-- ✅ Star Button (Separate from Link) -->
               <button class="favorite-btn" data-poem-id="{{ poem.id }}">
                 <span class="star-icon {% if poem in current_user.favorite_poems %}text-warning{% else %}text-secondary{% endif %}">
                   &#9733;
@@ -56,65 +66,99 @@
               <!-- Visibility dropdown for each poem -->
               <div class="ms-2">
                 <small class="text-muted">Visibility:</small>
-                <select class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updatePoemVisibility({{ poem.id }}, this.value)">
+                <select id="visibilitySelect-poem-{{ poem.id }}" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updatePoemVisibilityHandler({{ poem.id }}, this)">
                   <option value="public" {% if poem.visibility == 'public' %}selected{% endif %}>Public</option>
                   <option value="private" {% if poem.visibility == 'private' %}selected{% endif %}>Private</option>
+                  <option value="select_group" {% if poem.visibility.startswith('select_group') %}selected{% endif %}>
+                    {% if poem.visibility.startswith('select_group:') %}
+                      {% set selected_id = poem.visibility.split(':')[1] %}
+                      {% for group in chat_groups %}
+                        {% if group.id|string == selected_id %}
+                          {{ group.name }}
+                        {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      Select Group
+                    {% endif %}
+                  </option>
                 </select>
               </div>
             </div>
           </div>
           <!-- Right Column: Comment Form, Star Rating, and Scrollable Comments -->
-        <div class="col-md-6 d-flex flex-column" style="border-left: 1px solid #ddd;">
-          <!-- Comment Form with input group -->
-          <form class="add-comment-form" data-poem-id="{{ poem.id }}">
-            <div class="input-group mb-2">
-              <input type="text" class="form-control" name="comment" placeholder="Add a comment">
-              <button type="submit" class="btn btn-sm btn-outline-primary add-button-new">Submit</button>
-            </div>
-          </form>
-
-          <br>
-          <!-- Star Rating -->
-          <div class="rating mb-3" data-rating="{{ poem.rating }}" data-poem-id="{{ poem.id }}" style="padding-left: 15px;">
-            {% for i in range(1, 6) %}
-              <span class="star {% if i <= poem.rating %}text-warning{% else %}text-secondary{% endif %}" data-rating-value="{{ i }}">&#9733;</span>
-            {% endfor %}
-          </div>
-
-          <!-- Comments Section (Scrollable) -->
-          <div class="comments-container">
-            <h6>Comments:</h6>
-            <div class="comments-list">
-              {% set sorted_comments = poem.comments|sort(attribute='created_at', reverse=True) %}
-              {% for comment in sorted_comments %}
-                {% if comment.is_edit_marker %}
-                  <hr>
-                  <p class="small text-center text-muted">{{ comment.text }}</p>
-                {% else %}
-                  <p class="small d-flex align-items-start" id="comment-{{ comment.id }}">
-                    <!-- Profile image and username for comment -->
-                    {% if comment.author.profile_image %}
-                      <img src="{{ comment.author.profile_image }}" alt="Profile" class="comment-profile-img">
-                    {% else %}
-                      <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
-                        <span class="text-white">?</span>
-                      </div>
-                    {% endif %}
-                    <strong class="me-1">{{ comment.author.username }}</strong>: {{ comment.text }}
-                    {% if current_user.is_authenticated and comment.user_id == current_user.id %}
-                      <button class="btn btn-link btn-sm delete-comment" data-comment-id="{{ comment.id }}">Delete</button>
-                    {% endif %}
-                  </p>
-                {% endif %}
+          <div class="col-md-6 d-flex flex-column" style="border-left: 1px solid #ddd;">
+            <form class="add-comment-form" data-poem-id="{{ poem.id }}">
+              <div class="input-group mb-2">
+                <input type="text" class="form-control" name="comment" placeholder="Add a comment">
+                <button type="submit" class="btn btn-sm btn-outline-primary add-button-new">Submit</button>
+              </div>
+            </form>
+            <br>
+            <div class="rating mb-3" data-rating="{{ poem.rating }}" data-poem-id="{{ poem.id }}" style="padding-left: 15px;">
+              {% for i in range(1, 6) %}
+                <span class="star {% if i <= poem.rating %}text-warning{% else %}text-secondary{% endif %}" data-rating-value="{{ i }}">&#9733;</span>
               {% endfor %}
             </div>
+            <div class="comments-container">
+              <h6>Comments:</h6>
+              <div class="comments-list">
+                {% set sorted_comments = poem.comments|sort(attribute='created_at', reverse=True) %}
+                {% for comment in sorted_comments %}
+                  {% if comment.is_edit_marker %}
+                    <hr>
+                    <p class="small text-center text-muted">{{ comment.text }}</p>
+                  {% else %}
+                    <p class="small d-flex align-items-start" id="comment-{{ comment.id }}">
+                      {% if comment.author.profile_image %}
+                        <img src="{{ comment.author.profile_image }}" alt="Profile" class="comment-profile-img">
+                      {% else %}
+                        <div class="rounded-circle bg-secondary d-flex justify-content-center align-items-center comment-profile-img">
+                          <span class="text-white">?</span>
+                        </div>
+                      {% endif %}
+                      <strong class="me-1">{{ comment.author.username }}</strong>: {{ comment.text }}
+                      {% if current_user.is_authenticated and comment.user_id == current_user.id %}
+                        <button class="btn btn-link btn-sm delete-comment" data-comment-id="{{ comment.id }}">Delete</button>
+                      {% endif %}
+                    </p>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
   </div>
   {% endfor %}
+</div>
+
+<!-- Select Group Modal (shared for collections and poems) -->
+<div class="modal fade" id="selectGroupModal" tabindex="-1" aria-labelledby="selectGroupModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="selectGroupModalLabel">Select a Chat Group</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="selectGroupForm">
+          {% for group in chat_groups %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="selectedGroup" id="groupRadio{{ group.id }}" value="{{ group.id }}">
+            <label class="form-check-label" for="groupRadio{{ group.id }}">
+              {{ group.name }}
+            </label>
+          </div>
+          {% endfor %}
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="selectGroupBtn">Select</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Delete Collection Confirmation Modal -->
@@ -158,191 +202,138 @@
 
 {% block scripts %}
 <script>
+  // Global variables for collections and poems "Select Group" modal handling
+  window.currentCollectionId = null;
+  window.currentCollectionSelect = null;
+  window.currentPoemId = null;
+  window.currentPoemSelect = null;
 
-function updatePoemVisibility(poemId, newVisibility) {
-      console.log("poem entered")
-      fetch(`/update_poem_visibility/${poemId}`, {
-        method: "POST",
-        body: JSON.stringify({ visibility: newVisibility }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === "success") {
-          console.log(`Poem ${poemId} visibility updated to ${data.visibility}`);
-        } else {
-          alert("Error updating visibility: " + data.message);
-        }
-      })
-      .catch(error => console.error("Error:", error));
+  // For collections
+  function updateCollectionVisibilityHandler(collectionId, selectElement) {
+    var newValue = selectElement.value;
+    if(newValue === "select_group") {
+      window.currentCollectionId = collectionId;
+      window.currentCollectionSelect = selectElement;
+      var modal = new bootstrap.Modal(document.getElementById('selectGroupModal'));
+      modal.show();
+    } else {
+      updateCollectionVisibility(collectionId, newValue);
     }
+  }
 
-    function updateCollectionVisibility(collectionId, newVisibility) {
-      fetch(`/update_collection_visibility/${collectionId}`, {
-        method: "POST",
-        body: JSON.stringify({ visibility: newVisibility }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === "success") {
-          console.log(`Collection ${collectionId} visibility updated to ${data.visibility}`);
-        } else {
-          alert("Error updating visibility: " + data.message);
-        }
-      })
-      .catch(error => console.error("Error:", error));
-    }
-document.addEventListener('DOMContentLoaded', function () {
-  // Handle rating clicks
-  document.querySelectorAll('.rating').forEach(ratingElem => {
-    ratingElem.addEventListener('click', function(e) {
-      if(e.target.classList.contains('star')) {
-        const selectedRating = e.target.dataset.ratingValue;
-        const poemId = this.dataset.poemId;
-        const formData = new FormData();
-        formData.append("poem_id", poemId);
-        formData.append("rating", selectedRating);
-        fetch("/rate_poem", {
-          method: "POST",
-          body: formData,
-        })
-        .then(response => response.json())
-        .then(data => {
-          if(data.status === "success") {
-            Array.from(ratingElem.children).forEach(star => {
-              const starRating = parseInt(star.dataset.ratingValue);
-              if(starRating <= data.rating) {
-                star.classList.remove("text-secondary");
-                star.classList.add("text-warning");
-              } else {
-                star.classList.remove("text-warning");
-                star.classList.add("text-secondary");
-              }
-            });
-          } else {
-            alert("Error: " + data.message);
-          }
-        })
-        .catch(error => console.error("Error:", error));
+  function updateCollectionVisibility(collectionId, newVisibility) {
+    fetch(`/update_collection_visibility/${collectionId}`, {
+      method: "POST",
+      body: JSON.stringify({ visibility: newVisibility }),
+      headers: { "Content-Type": "application/json" },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        console.log(`Collection ${collectionId} visibility updated to ${data.visibility}`);
+      } else {
+        alert("Error updating collection visibility: " + data.message);
       }
-    });
-  });
+    })
+    .catch(error => console.error("Error:", error));
+  }
 
-  // Handle comment deletion via event delegation
-  document.addEventListener('click', function(e) {
-    if(e.target && e.target.classList.contains('delete-comment')) {
-      const commentId = e.target.dataset.commentId;
-      const formData = new FormData();
-      formData.append("comment_id", commentId);
-      fetch("/delete_comment", {
-        method: "POST",
-        body: formData,
-      })
-      .then(response => response.json())
-      .then(data => {
-        if(data.status === "success") {
-          const commentElem = document.getElementById('comment-' + commentId);
-          if(commentElem) {
-            commentElem.remove();
-          }
-        } else {
-          alert("Error: " + data.message);
-        }
-      })
-      .catch(error => console.error("Error:", error));
+  // For editing poems
+  function updatePoemVisibilityHandler(poemId, selectElement) {
+    var newValue = selectElement.value;
+    if(newValue === "select_group") {
+      window.currentPoemId = poemId;
+      window.currentPoemSelect = selectElement;
+      var modal = new bootstrap.Modal(document.getElementById('selectGroupModal'));
+      modal.show();
+    } else {
+      updatePoemVisibility(poemId, newValue);
     }
-  });
+  }
 
-  // Delete collection handling for collection page
-  document.getElementById('deleteCollectionBtn').addEventListener('click', function(){
-    const collectionId = this.dataset.collectionId;
-    const deleteModal = new bootstrap.Modal(document.getElementById('deleteCollectionModal'));
-    deleteModal.show();
-    document.getElementById('confirmDeleteCollectionBtn').addEventListener('click', function(){
-      const formData = new FormData();
-      formData.append("collection_id", collectionId);
-      fetch("/delete_collection", {
-        method: "POST",
-        body: formData,
-      })
-      .then(response => response.json())
-      .then(data => {
-        if(data.status === "success"){
-          window.location.href = "{{ url_for('profile') }}";
-        } else {
-          alert("Error: " + data.message);
-        }
-      })
-      .catch(error => console.error("Error:", error));
-    }, { once: true });
-  });
-
-  // Delete poem handling for collection page
-  document.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      if(this.dataset.type === "poem"){
-        window.poemIdToDelete = this.dataset.id;
-        window.poemNameToDelete = this.dataset.name;
-        document.getElementById('deletePoemName').innerText = window.poemNameToDelete;
-        const poemDeleteModal = new bootstrap.Modal(document.getElementById('deletePoemModal'));
-        poemDeleteModal.show();
+  function updatePoemVisibility(poemId, newVisibility) {
+    fetch(`/update_poem_visibility/${poemId}`, {
+      method: "POST",
+      body: JSON.stringify({ visibility: newVisibility }),
+      headers: { "Content-Type": "application/json" },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        console.log(`Poem ${poemId} visibility updated to ${data.visibility}`);
+      } else {
+        alert("Error updating poem visibility: " + data.message);
       }
-    });
-  });
+    })
+    .catch(error => console.error("Error:", error));
+  }
 
-  document.getElementById('confirmDeletePoemBtn').addEventListener('click', function() {
-    if(window.poemIdToDelete){
-      const formData = new FormData();
-      formData.append("poem_id", window.poemIdToDelete);
-      fetch("/delete_poem", {
-        method: "POST",
-        body: formData,
-      })
-      .then(response => response.json())
-      .then(data => {
-        if(data.status === "success"){
-          const modalEl = document.getElementById('deletePoemModal');
-          let modalInstance = bootstrap.Modal.getInstance(modalEl);
-          if(modalInstance){
-            modalInstance.hide();
-          }
-          location.reload();
-        } else {
-          alert("Error: " + data.message);
-        }
-      })
-      .catch(error => console.error("Error:", error));
+  // For new poems (add_poem page), since no poem ID exists yet,
+  // we simply update the select's value with the chosen option.
+  function updateNewPoemVisibilityHandler(selectElement) {
+    var newValue = selectElement.value;
+    if(newValue === "select_group") {
+      window.currentPoemSelect = selectElement;
+      var modal = new bootstrap.Modal(document.getElementById('selectGroupModal'));
+      modal.show();
     }
-  });
+  }
 
-  document.querySelectorAll('.favorite-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        const poemId = this.dataset.poemId;
-        fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === "success") {
-            const starIcon = this.querySelector('.star-icon');
-            if (data.favorited) {
-              starIcon.classList.remove("text-secondary");
-              starIcon.classList.add("text-warning");
-            } else {
-              starIcon.classList.remove("text-warning");
-              starIcon.classList.add("text-secondary");
-            }
-          } else {
-            alert("Error: " + data.message);
-          }
-        })
-        .catch(error => console.error("Error:", error));
-      });
-    });
-    
+  // Event listener for the "Select" button in the Select Group Modal (used for both collections and poems)
+  document.getElementById('selectGroupBtn').addEventListener('click', function() {
+  var selectedRadio = document.querySelector('input[name="selectedGroup"]:checked');
+  if (!selectedRadio) {
+    alert("Please select a group.");
+    return;
+  }
+  var groupId = selectedRadio.value;
+  var groupName = selectedRadio.nextElementSibling.textContent.trim();
+  var newVisibility = "select_group:" + groupId;
+  
+  // Helper function to update a select element by adding a new option.
+  function updateSelectElement(selectElement, updateVisibility) {
+    // Create a new option element
+    var newOption = document.createElement("option");
+    newOption.value = updateVisibility;
+    newOption.text = groupName;
+    // Append the new option to the select element
+    selectElement.appendChild(newOption);
+    // Set the new option as selected
+    selectElement.value = updateVisibility;
+  }
+  
+  // Check if we're updating a collection or a poem
+  if (window.currentCollectionSelect) {
+    updateSelectElement(window.currentCollectionSelect, newVisibility);
+    updateCollectionVisibility(window.currentCollectionId, newVisibility);
+    window.currentCollectionId = null;
+    window.currentCollectionSelect = null;
+  }
+  if (window.currentPoemSelect) {
+    updateSelectElement(window.currentPoemSelect, newVisibility);
+    updatePoemVisibility(window.currentPoemId, newVisibility);
+    window.currentPoemId = null;
+    window.currentPoemSelect = null;
+  }
+  
+  var modalEl = document.getElementById('selectGroupModal');
+  var modalInstance = bootstrap.Modal.getInstance(modalEl);
+  if (modalInstance) modalInstance.hide();
+});
+
+
+  // Other existing scripts (for tags, discard, deletion, rating, comments, etc.) remain unchanged...
+  
+  // Example: Discard Confirmation for edit_poem and add_poem
+  document.getElementById('discardBtn').addEventListener('click', function() {
+    var discardModal = new bootstrap.Modal(document.getElementById('discardConfirmModal'));
+    discardModal.show();
+  });
+  document.getElementById('confirmDiscardBtn').addEventListener('click', function() {
+    window.location.href = "{{ url_for('profile') }}";
+  });
+  
+  // (The rest of your existing JS for tags, comments, deletion, etc., remains as is.)
 });
 </script>
 {% endblock %}

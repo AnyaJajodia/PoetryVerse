@@ -14,14 +14,14 @@
     <label for="content" class="form-label">Content</label>
     <textarea class="form-control" id="content" name="content" rows="20" required></textarea>
   </div>
-    <!-- Tag Input Field -->
-    <div class="mb-3" style="position: relative;">
-      <label for="tag-input" class="form-label">Tags</label>
-      <input type="text" class="form-control" id="tag-input" placeholder="Type a tag and press Enter" autocomplete="off">
-      <div id="tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
-      <div id="tag-chips" class="tag-chips-container"></div>
-      <input type="hidden" name="tags" id="tags-hidden">
-    </div>
+  <!-- Tag Input Field -->
+  <div class="mb-3" style="position: relative;">
+    <label for="tag-input" class="form-label">Tags</label>
+    <input type="text" class="form-control" id="tag-input" placeholder="Type a tag and press Enter" autocomplete="off">
+    <div id="tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+    <div id="tag-chips" class="tag-chips-container"></div>
+    <input type="hidden" name="tags" id="tags-hidden">
+  </div>
   
   <!-- New Visibility Dropdown for Poem -->
   <div class="mb-3">
@@ -52,6 +52,7 @@
     <select class="form-select" id="coll_visibility" name="coll_visibility">
       <option value="public" selected>Public</option>
       <option value="private">Private</option>
+      <option value="select_group">Select Group</option>
     </select>
   </div>
   {% if prompt_id %}
@@ -85,7 +86,6 @@
 {% endblock %}
 {% block scripts %}
 <script>
-
   // Tag functionality for add_poem.html
   (function() {
     const tagInput = document.getElementById('tag-input');
@@ -158,7 +158,6 @@
               });
               tagSuggestions.style.display = 'block';
             } else {
-              // If no suggestions, show an option to add the new tag
               const div = document.createElement('div');
               div.className = 'autocomplete-suggestion';
               div.textContent = `Add "${query}"`;
@@ -176,7 +175,6 @@
       }
     });
 
-    // Hide suggestions when clicking outside
     document.addEventListener('click', function(e) {
       if (!tagInput.contains(e.target) && !tagSuggestions.contains(e.target)) {
         tagSuggestions.style.display = 'none';
@@ -194,15 +192,77 @@
     }
   });
 
-  // When Discard is clicked, show the confirmation modal
+  // Discard changes
   document.getElementById('discardBtn').addEventListener('click', function() {
     var discardModal = new bootstrap.Modal(document.getElementById('discardConfirmModal'));
     discardModal.show();
   });
 
-  // If user confirms discard, redirect to the profile page
   document.getElementById('confirmDiscardBtn').addEventListener('click', function() {
     window.location.href = "{{ url_for('profile') }}";
+  });
+
+  // Visibility handling for poem creation
+  function updatePoemVisibility(poemId, newVisibility) {
+    fetch(`/update_poem_visibility/${poemId}`, {
+      method: "POST",
+      body: JSON.stringify({ visibility: newVisibility }),
+      headers: { "Content-Type": "application/json" },
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        console.log(`Poem ${poemId} visibility updated to ${data.visibility}`);
+      } else {
+        alert("Error updating visibility: " + data.message);
+      }
+    })
+    .catch(error => console.error("Error:", error));
+  }
+
+  // Global variables for "Select Group" modal for poems
+  window.currentPoemId = null;
+  window.currentPoemSelect = null;
+
+  function updatePoemVisibilityHandler(poemId, selectElement) {
+    var newValue = selectElement.value;
+    if(newValue === "select_group") {
+      window.currentPoemId = poemId;
+      window.currentPoemSelect = selectElement;
+      var modal = new bootstrap.Modal(document.getElementById('selectGroupModal'));
+      modal.show();
+    } else {
+      updatePoemVisibility(poemId, newValue);
+    }
+  }
+
+  // Event listener for the "Select" button in the Select Group Modal (for poems and collections)
+  document.getElementById('selectGroupBtn').addEventListener('click', function() {
+    var selectedRadio = document.querySelector('input[name="selectedGroup"]:checked');
+    if(!selectedRadio) {
+      alert("Please select a group.");
+      return;
+    }
+    var groupId = selectedRadio.value;
+    var groupName = selectedRadio.nextElementSibling.textContent.trim();
+    var newVisibility = "select_group:" + groupId;
+    // Check if updating a collection or a poem based on global variables
+    if(window.currentPoemSelect) {
+      window.currentPoemSelect.value = newVisibility;
+      // Optionally update displayed text if needed
+      updatePoemVisibility(window.currentPoemId, newVisibility);
+      window.currentPoemId = null;
+      window.currentPoemSelect = null;
+    }
+    if(window.currentCollectionSelect) {
+      window.currentCollectionSelect.value = newVisibility;
+      updateCollectionVisibility(window.currentCollectionId, newVisibility);
+      window.currentCollectionId = null;
+      window.currentCollectionSelect = null;
+    }
+    var modalEl = document.getElementById('selectGroupModal');
+    var modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if(modalInstance) modalInstance.hide();
   });
 </script>
 {% endblock %}

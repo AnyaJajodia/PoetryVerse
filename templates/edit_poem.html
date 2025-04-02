@@ -18,13 +18,13 @@
     <textarea class="form-control" id="content" name="content" rows="20" required>{{ poem.content }}</textarea>
   </div>
   <!-- Tag Input Field -->
-<div class="mb-3" style="position: relative;">
-  <label for="tag-input" class="form-label">Tags</label>
-  <input type="text" class="form-control" id="tag-input" placeholder="Type a tag and press Enter" autocomplete="off">
-  <div id="tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
-  <div id="tag-chips" class="tag-chips-container"></div>
-  <input type="hidden" name="tags" id="tags-hidden">
-</div>
+  <div class="mb-3" style="position: relative;">
+    <label for="tag-input" class="form-label">Tags</label>
+    <input type="text" class="form-control" id="tag-input" placeholder="Type a tag and press Enter" autocomplete="off">
+    <div id="tag-suggestions" class="autocomplete-suggestions" style="display: none;"></div>
+    <div id="tag-chips" class="tag-chips-container"></div>
+    <input type="hidden" name="tags" id="tags-hidden">
+  </div>
 
   <!-- Visibility Dropdown for Poem -->
   <div class="mb-3">
@@ -63,7 +63,7 @@
 <script>
   let initialTags = {{ poem.tags | map(attribute='name') | list | tojson | safe }};
 
-  // Tag functionality for edit_poem.html
+  // Tag functionality for edit_poem.html (similar to add_poem)
   (function() {
     const tagInput = document.getElementById('tag-input');
     const tagChipsContainer = document.getElementById('tag-chips');
@@ -71,7 +71,6 @@
     const tagsHidden = document.getElementById('tags-hidden');
     let tags = [];
 
-    // Prepopulate initial tags passed from the backend
     initialTags.forEach(function(tag) {
       addTag(tag);
     });
@@ -163,13 +162,12 @@
       }
     });
   })();
-  // When Discard is clicked, show the confirmation modal
+
   document.getElementById('discardBtn').addEventListener('click', function() {
     var discardModal = new bootstrap.Modal(document.getElementById('discardConfirmModal'));
     discardModal.show();
   });
 
-  // If user confirms discard, redirect to the profile page
   document.getElementById('confirmDiscardBtn').addEventListener('click', function() {
     window.location.href = "{{ url_for('profile') }}";
   });

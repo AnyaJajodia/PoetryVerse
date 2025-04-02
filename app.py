@@ -149,32 +149,42 @@ def load_user(user_id):
 def home():
     return render_template('home.html')
 
-# @app.route('/explore')
-# def explore():
-#     # ✅ Ensure only public poems are shown
-#     poems = Poem.query.filter_by(visibility='public').all()
-#     return render_template('explore.html', poems=poems)
 
 @app.route('/explore')
 def explore():
-    filter_tags = request.args.get('filter_tags', '')
-    poems_query = Poem.query.filter_by(visibility='public')
-    
-    if filter_tags:
-        tag_list = [tag.strip().lower() for tag in filter_tags.split(',') if tag.strip()]
-        if tag_list:
-            # Join with Tag and filter poems that have any of the specified tags.
-            poems_query = poems_query.join(Poem.tags).filter(Tag.name.in_(tag_list)).group_by(Poem.id)
-    
-    poems = poems_query.all()
+    # If the user is logged in, we want to include poems with select_group visibility that the user is allowed to see.
+    if current_user.is_authenticated:
+        # Fetch all poems that are public OR have a select_group visibility value.
+        all_poems = Poem.query.filter(
+            (Poem.visibility=='public') | 
+            (Poem.visibility.like("select_group:%"))
+        ).all()
+        visible_poems = []
+        for poem in all_poems:
+            if poem.visibility == 'public':
+                visible_poems.append(poem)
+            elif poem.visibility.startswith("select_group:"):
+                try:
+                    group_id = int(poem.visibility.split(":")[1])
+                    group = ChatGroup.query.get(group_id)
+                    if group and current_user in group.members:
+                        visible_poems.append(poem)
+                except (IndexError, ValueError):
+                    pass
+        poems = visible_poems
+    else:
+        # For anonymous users, only public poems are visible.
+        poems = Poem.query.filter_by(visibility='public').all()
     return render_template('explore.html', poems=poems)
+
 
 
 @app.route('/profile')
 @login_required
 def profile():
     user = current_user
-    return render_template('profile.html', user=user)
+    chat_groups = user.chat_groups.all()
+    return render_template('profile.html', user=user, chat_groups=chat_groups)
 
 @app.route('/collection/<int:collection_id>')
 @login_required
@@ -186,6 +196,8 @@ def collection(collection_id):
     poems = Poem.query.filter_by(collection_id=collection_id).all()
     return render_template('collection.html', collection=collection_obj, poems=poems)
 
+
+
 @app.route('/add_poem', methods=['GET', 'POST'])
 @login_required
 def add_poem():
@@ -195,6 +207,7 @@ def add_poem():
         title = request.form.get('title')
         content = request.form.get('content')
         poem_type = request.form.get('type')
+        # Store the visibility as submitted (could be "public", "private", or "select_group:ID")
         visibility = request.form.get('visibility') or 'public'
         collection_option = request.form.get('collection')
         new_collection_name = request.form.get('new_collection')
@@ -220,7 +233,7 @@ def add_poem():
                 flash("Invalid collection selection.", "danger")
                 return redirect(url_for('add_poem'))
 
-        # Process tags for new poem (existing code)...
+        # Process tags for new poem
         tags_str = request.form.get('tags')
         if tags_str:
             tag_list = [t.strip() for t in tags_str.split(',') if t.strip()]
@@ -241,7 +254,10 @@ def add_poem():
         db.session.commit()
         flash("Poem added successfully!", "success")
         return redirect(url_for('profile'))
-    return render_template('add_poem.html', collections=collections, prompt_id=prompt_id)
+    # Ensure chat_groups is passed to the template so that the "Select Group" modal works
+    chat_groups = current_user.chat_groups.all()
+    return render_template('add_poem.html', collections=collections, prompt_id=prompt_id, chat_groups=chat_groups)
+
 
 @app.route('/edit_poem/<int:poem_id>', methods=['GET', 'POST'])
 @login_required
@@ -254,6 +270,7 @@ def edit_poem(poem_id):
         poem.title = request.form.get('title')
         poem.content = request.form.get('content')
         poem.poem_type = request.form.get('type')
+        # Store the visibility as submitted (it may be "select_group:ID")
         poem.visibility = request.form.get('visibility') or 'public'
         tags_str = request.form.get('tags')
         poem.tags.clear()
@@ -267,7 +284,6 @@ def edit_poem(poem_id):
                     db.session.add(tag_obj)
                 poem.tags.append(tag_obj)
         db.session.commit()
-        # Convert UTC to EST (UTC-5)
         dt_est = datetime.utcnow() - timedelta(hours=5)
         marker_text = "Edits made on " + dt_est.strftime("%Y-%m-%d %H:%M:%S EST") + " NEW COMMENTS ABOVE"
         marker_comment = Comment(text=marker_text, poem=poem, user_id=current_user.id, is_edit_marker=True)
@@ -275,12 +291,16 @@ def edit_poem(poem_id):
         db.session.commit()
         flash("Poem updated successfully!", "success")
         return redirect(url_for('profile'))
-    return render_template('edit_poem.html', poem=poem)
+    # Ensure chat_groups is passed for modal usage
+    chat_groups = current_user.chat_groups.all()
+    return render_template('edit_poem.html', poem=poem, chat_groups=chat_groups)
+
 
 @app.route('/create_collection', methods=['POST'])
 @login_required
 def create_collection():
     collection_name = request.form.get('collection_name')
+    # Store the visibility as submitted (can be "select_group:ID")
     coll_visibility = request.form.get('visibility') or 'public'
     if not collection_name:
         return jsonify(status="error", message="Please provide a collection name."), 400
@@ -290,6 +310,7 @@ def create_collection():
     db.session.add(new_collection)
     db.session.commit()
     return jsonify(status="success", message="Collection created successfully!", collection_name=collection_name)
+
 
 @app.route('/rate_poem', methods=['POST'])
 @login_required
@@ -394,14 +415,15 @@ def update_poem_visibility(poem_id):
 
     data = request.get_json()
     new_visibility = data.get("visibility")
-    if new_visibility not in ["public", "private"]:
+    if new_visibility not in ["public", "private"] and not new_visibility.startswith("select_group:"):
         return jsonify(status="error", message="Invalid visibility value"), 400
 
-    # ✅ Actually update the database and commit the change
     poem.visibility = new_visibility
     db.session.commit()
 
     return jsonify(status="success", message="Poem visibility updated", visibility=poem.visibility)
+
+
 
 @app.route('/update_collection_visibility/<int:collection_id>', methods=['POST'])
 @login_required
@@ -412,18 +434,17 @@ def update_collection_visibility(collection_id):
 
     data = request.get_json()
     new_visibility = data.get("visibility")
-    if new_visibility not in ["public", "private"]:
+    if new_visibility not in ["public", "private"] and not new_visibility.startswith("select_group:"):
         return jsonify(status="error", message="Invalid visibility value"), 400
 
-    # ✅ Update collection visibility
     collection.visibility = new_visibility
-
-    # ✅ Recursively update all poems when collection visibility changes
+    # Update all poems in this collection to have the same visibility
     for poem in collection.poems:
-        poem.visibility = new_visibility  # ✅ Update all poems to match collection visibility
+        poem.visibility = new_visibility
 
     db.session.commit()
     return jsonify(status="success", message="Collection visibility updated", visibility=collection.visibility)
+
 
 
 
@@ -525,9 +546,20 @@ def get_comments(poem_id):
 @app.route('/poem/<int:poem_id>')
 def view_poem(poem_id):
     poem = Poem.query.get_or_404(poem_id)
+    # Check visibility:
     if poem.visibility == 'private' and poem.author != current_user:
         flash("This poem is private.", "danger")
         return redirect(url_for('home'))
+    elif poem.visibility.startswith("select_group:"):
+        try:
+            group_id = int(poem.visibility.split(":")[1])
+            group = ChatGroup.query.get(group_id)
+            if not (current_user.is_authenticated and group and current_user in group.members):
+                flash("You do not have access to view this poem.", "danger")
+                return redirect(url_for('home'))
+        except (IndexError, ValueError):
+            flash("This poem has invalid visibility settings.", "danger")
+            return redirect(url_for('home'))
     return render_template('view_poem.html', poem=poem)
 
 @app.route('/toggle_favorite/<int:poem_id>', methods=['POST'])
