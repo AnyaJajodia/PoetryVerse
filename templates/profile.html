@@ -69,12 +69,11 @@
           <option value="public" {% if coll.visibility == 'public' %}selected{% endif %}>Public</option>
           <option value="private" {% if coll.visibility == 'private' %}selected{% endif %}>Private</option>
           <!-- Always render the default "Select Group" option -->
-          <option value="select_group" {% if not coll.visibility.startswith('select_group:') %}selected{% endif %}>Select Group</option>
+          <option value="select_group" {% if coll.visibility == 'select_group' %}selected{% endif %}>Select Group</option>
           {% if coll.visibility.startswith('select_group:') %}
             {% set selected_id = coll.visibility.split(':')[1] %}
             {% for group in chat_groups %}
               {% if group.id|string == selected_id %}
-                <!-- Render an additional option for the selected group -->
                 <option value="select_group:{{ group.id }}" selected>{{ group.name }}</option>
               {% endif %}
             {% endfor %}
@@ -145,7 +144,7 @@
               <option value="public" {% if poem.visibility == 'public' %}selected{% endif %}>Public</option>
               <option value="private" {% if poem.visibility == 'private' %}selected{% endif %}>Private</option>
               <!-- Always render the default "Select Group" option -->
-              <option value="select_group" {% if not poem.visibility.startswith('select_group:') %}selected{% endif %}>Select Group</option>
+              <option value="select_group" {% if poem.visibility == 'select_group' %}selected{% endif %}>Select Group</option>
               {% if poem.visibility.startswith('select_group:') %}
                 {% set selected_id = poem.visibility.split(':')[1] %}
                 {% for group in chat_groups %}
