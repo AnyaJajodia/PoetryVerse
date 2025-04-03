@@ -5,22 +5,21 @@
   <div>
     <!-- Visibility dropdown for collection -->
     <small class="text-muted me-2">Visibility:</small>
-    <select id="visibilitySelect-{{ collection.id }}" class="form-select form-select-sm d-inline-block me-2" style="width: auto;" onchange="updateCollectionVisibilityHandler({{ collection.id }}, this)">
+    <select id="visibilitySelect-{{ collection.id }}" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updateCollectionVisibilityHandler({{ collection.id }}, this)">
       <option value="public" {% if collection.visibility == 'public' %}selected{% endif %}>Public</option>
       <option value="private" {% if collection.visibility == 'private' %}selected{% endif %}>Private</option>
-      <option value="select_group" {% if collection.visibility.startswith('select_group') %}selected{% endif %}>
-        {% if collection.visibility.startswith('select_group:') %}
-          {% set selected_id = collection.visibility.split(':')[1] %}
-          {% for group in chat_groups %}
-            {% if group.id|string == selected_id %}
-              {{ group.name }}
-            {% endif %}
-          {% endfor %}
-        {% else %}
-          Select Group
-        {% endif %}
-      </option>
-    </select>
+      <!-- Always render the default "Select Group" option -->
+      <option value="select_group" {% if not collection.visibility.startswith('select_group:') %}selected{% endif %}>Select Group</option>
+      {% if collection.visibility.startswith('select_group:') %}
+        {% set selected_id = collection.visibility.split(':')[1] %}
+        {% for group in chat_groups %}
+          {% if group.id|string == selected_id %}
+            <!-- Render an additional option for the selected group -->
+            <option value="select_group:{{ group.id }}" selected>{{ group.name }}</option>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </select>      
     <a href="{{ url_for('add_poem') }}" class="btn btn-sm btn-success me-2 prf-add">Add Poem +</a>
     <button class="btn btn-sm btn-outline-danger discard-custom" id="deleteCollectionBtn" data-collection-id="{{ collection.id }}">
       Delete Collection
@@ -66,22 +65,21 @@
               <!-- Visibility dropdown for each poem -->
               <div class="ms-2">
                 <small class="text-muted">Visibility:</small>
-                <select id="visibilitySelect-poem-{{ poem.id }}" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updatePoemVisibilityHandler({{ poem.id }}, this)">
-                  <option value="public" {% if poem.visibility == 'public' %}selected{% endif %}>Public</option>
-                  <option value="private" {% if poem.visibility == 'private' %}selected{% endif %}>Private</option>
-                  <option value="select_group" {% if poem.visibility.startswith('select_group') %}selected{% endif %}>
-                    {% if poem.visibility.startswith('select_group:') %}
-                      {% set selected_id = poem.visibility.split(':')[1] %}
-                      {% for group in chat_groups %}
-                        {% if group.id|string == selected_id %}
-                          {{ group.name }}
-                        {% endif %}
-                      {% endfor %}
-                    {% else %}
-                      Select Group
-                    {% endif %}
-                  </option>
-                </select>
+                <select id="visibilitySelect-{{ collection.id }}" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="updateCollectionVisibilityHandler({{ collection.id }}, this)">
+                  <option value="public" {% if collection.visibility == 'public' %}selected{% endif %}>Public</option>
+                  <option value="private" {% if collection.visibility == 'private' %}selected{% endif %}>Private</option>
+                  <!-- Always render the default "Select Group" option -->
+                  <option value="select_group" {% if not collection.visibility.startswith('select_group:') %}selected{% endif %}>Select Group</option>
+                  {% if collection.visibility.startswith('select_group:') %}
+                    {% set selected_id = collection.visibility.split(':')[1] %}
+                    {% for group in chat_groups %}
+                      {% if group.id|string == selected_id %}
+                        <!-- Render an additional option for the selected group -->
+                        <option value="select_group:{{ group.id }}" selected>{{ group.name }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                </select>                
               </div>
             </div>
           </div>
@@ -279,7 +277,6 @@
     }
   }
 
-  // Event listener for the "Select" button in the Select Group Modal (used for both collections and poems)
   document.getElementById('selectGroupBtn').addEventListener('click', function() {
   var selectedRadio = document.querySelector('input[name="selectedGroup"]:checked');
   if (!selectedRadio) {
@@ -290,15 +287,24 @@
   var groupName = selectedRadio.nextElementSibling.textContent.trim();
   var newVisibility = "select_group:" + groupId;
   
-  // Helper function to update a select element by adding a new option.
+  // Helper function to update a select element by appending a new option if needed
   function updateSelectElement(selectElement, updateVisibility) {
-    // Create a new option element
-    var newOption = document.createElement("option");
-    newOption.value = updateVisibility;
-    newOption.text = groupName;
-    // Append the new option to the select element
-    selectElement.appendChild(newOption);
-    // Set the new option as selected
+    var optionExists = false;
+    // Loop through the options to see if one with the new value already exists.
+    for (var i = 0; i < selectElement.options.length; i++) {
+      if (selectElement.options[i].value === updateVisibility) {
+        optionExists = true;
+        break;
+      }
+    }
+    // If it doesn't exist, create and append the new option
+    if (!optionExists) {
+      var newOption = document.createElement("option");
+      newOption.value = updateVisibility;
+      newOption.text = groupName;
+      selectElement.appendChild(newOption);
+    }
+    // Always set the new option as selected
     selectElement.value = updateVisibility;
   }
   
@@ -320,6 +326,7 @@
   var modalInstance = bootstrap.Modal.getInstance(modalEl);
   if (modalInstance) modalInstance.hide();
 });
+
 
 
   // Other existing scripts (for tags, discard, deletion, rating, comments, etc.) remain unchanged...

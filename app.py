@@ -194,8 +194,14 @@ def collection(collection_id):
         flash("You don't have access to that collection", "danger")
         return redirect(url_for('profile'))
     poems = Poem.query.filter_by(collection_id=collection_id).all()
-    return render_template('collection.html', collection=collection_obj, poems=poems)
-
+    
+    # FIX: pass the current user's chat groups to the template
+    chat_groups = current_user.chat_groups.all()
+    
+    return render_template('collection.html',
+                           collection=collection_obj,
+                           poems=poems,
+                           chat_groups=chat_groups)
 
 
 @app.route('/add_poem', methods=['GET', 'POST'])
