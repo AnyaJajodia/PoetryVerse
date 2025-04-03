@@ -152,13 +152,28 @@ def home():
 
 @app.route('/explore')
 def explore():
-    # If the user is logged in, we want to include poems with select_group visibility that the user is allowed to see.
+    # Start with a base query. If the user is logged in, include poems with select_group visibility if the user is allowed.
     if current_user.is_authenticated:
-        # Fetch all poems that are public OR have a select_group visibility value.
-        all_poems = Poem.query.filter(
-            (Poem.visibility=='public') | 
+        base_query = Poem.query.filter(
+            (Poem.visibility == 'public') | 
             (Poem.visibility.like("select_group:%"))
-        ).all()
+        )
+    else:
+        base_query = Poem.query.filter_by(visibility='public')
+    
+    # Apply tag filtering if filter_tags parameter is provided in the URL.
+    filter_tags = request.args.get('filter_tags', None)
+    if filter_tags:
+        tag_list = [tag.strip() for tag in filter_tags.split(',') if tag.strip()]
+        if tag_list:
+            # Join with tags so that only poems with matching tags are included.
+            base_query = base_query.join(Poem.tags).filter(Tag.name.in_(tag_list)).group_by(Poem.id)
+    
+    # Get all poems from the base query.
+    all_poems = base_query.all()
+    
+    # For logged-in users, filter out select_group poems that they are not allowed to see.
+    if current_user.is_authenticated:
         visible_poems = []
         for poem in all_poems:
             if poem.visibility == 'public':
@@ -173,9 +188,21 @@ def explore():
                     pass
         poems = visible_poems
     else:
-        # For anonymous users, only public poems are visible.
-        poems = Poem.query.filter_by(visibility='public').all()
+        poems = all_poems
+
+    # Apply sorting based on sortBy parameter from the URL.
+    sortBy = request.args.get('sortBy', 'most_interacted')
+    if sortBy == "most_interacted":
+        # Sort by number of comments (descending)
+        poems = sorted(poems, key=lambda p: len(p.comments), reverse=True)
+    elif sortBy == "old_to_new":
+        # Use the poem id as a proxy for creation time (ascending)
+        poems = sorted(poems, key=lambda p: p.id)
+    elif sortBy == "new_to_old":
+        poems = sorted(poems, key=lambda p: p.id, reverse=True)
+
     return render_template('explore.html', poems=poems)
+
 
 
 
