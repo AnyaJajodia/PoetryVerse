@@ -20,6 +20,62 @@ document.addEventListener('DOMContentLoaded', function() {
   window.availableUsers = window.availableUsers || [];
   window.currentUsername = window.currentUsername || "";
 
+
+  const followBtn = document.getElementById('followBtn');
+  if (followBtn) {
+    followBtn.addEventListener('click', function() {
+      const btnText = followBtn.textContent.trim();
+      if (btnText === "Follow") {
+        // Use a data attribute on the follow button to store the follow URL:
+        const followUrl = followBtn.getAttribute('data-follow-url');
+        fetch(followUrl, { method: "POST" })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === "success") {
+              followBtn.textContent = "Following";
+              followBtn.classList.remove("btn-primary");
+              followBtn.classList.add("btn-secondary");
+              console.log("Now following user.");
+            } else {
+              alert("Error: " + data.message);
+            }
+          })
+          .catch(error => console.error("Error:", error));
+      } else {
+        // If already following, show the unfollow confirmation modal.
+        const modalEl = document.getElementById('unfollowConfirmModal');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    });
+  }
+  
+  document.addEventListener("click", function(e) {
+    if (e.target && e.target.id === "confirmUnfollowBtn") {
+      e.preventDefault();
+      const followBtn = document.getElementById('followBtn');
+      const unfollowUrl = followBtn.getAttribute('data-unfollow-url');
+      console.log("Unfollow button clicked. Sending request to:", unfollowUrl);
+      fetch(unfollowUrl, { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+          console.log("Unfollow response:", data);
+          if (data.status === "success") {
+            followBtn.textContent = "Follow";
+            followBtn.classList.remove("btn-secondary");
+            followBtn.classList.add("btn-primary");
+            const modalEl = document.getElementById('unfollowConfirmModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+            console.log("Unfollowed user, modal hidden.");
+          } else {
+            alert("Error: " + data.message);
+          }
+        })
+        .catch(error => console.error("Error:", error));
+    }
+  });
+
   /*===============================================
     2. Tag Input Setup (for Add/Edit Poem pages)
   ===============================================*/
