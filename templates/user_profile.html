@@ -25,13 +25,15 @@
     {% if current_user.is_authenticated and current_user.id != user.id %}
       {% set is_following = current_user.following.filter_by(id=user.id).first() %}
       <div class="d-flex align-items-center mb-3">
-        <button id="followBtn" class="{% if is_following %}following-btn{% else %}follow-btn{% endif %}">
-          {% if is_following %}
-            Following
-          {% else %}
-            Follow
-          {% endif %}
-        </button>
+        <button id="followBtn" class="{% if is_following %}following-btn{% else %}follow-btn{% endif %}"
+        data-follow-url="{{ url_for('follow', user_id=user.id) }}"
+        data-unfollow-url="{{ url_for('unfollow', user_id=user.id) }}">
+            {% if is_following %}
+              Following
+            {% else %}
+              Follow
+            {% endif %}
+          </button>
         <div class="ms-3">
           <span>{{ user.following.count() }}</span>
           <small>Following</small>
@@ -170,3 +172,4 @@
 
 </div>
 {% endblock %}
+
