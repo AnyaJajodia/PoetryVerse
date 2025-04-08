@@ -7,9 +7,29 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO
+from flask_socketio import join_room
 
 load_dotenv()
 app = Flask(__name__)
+
+socketio = SocketIO(app, async_mode='eventlet')
+@socketio.on('join')
+def handle_join(data):
+    group_id = data.get('groupId')
+    if group_id:
+        join_room(str(group_id))
+        print(f"{current_user.username} joined room {group_id}")
+        return {'status': 'joined', 'room': group_id}
+
+@socketio.on('join_poem')
+def handle_join_poem(data):
+    poem_id = data.get('poemId')
+    if poem_id:
+        join_room(f"poem_{poem_id}")
+        print(f"{current_user.username} joined poem room {poem_id}")
+
+
 app.config['SECRET_KEY'] = 'secret_key'  # Use a secure key in production
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -389,24 +409,51 @@ def add_comment():
     )
 
 
-@app.route('/delete_comment', methods=['POST'])
-@login_required
-def delete_comment():
+@socketio.on('delete_comment')
+def handle_delete_comment(data):
     try:
-        comment_id = int(request.form.get('comment_id'))
+        comment_id = int(data.get('comment_id'))
     except (ValueError, TypeError):
-        return jsonify(status="error", message="Invalid comment id"), 400
-
+        return {'status': 'error', 'message': 'Invalid comment id.'}
+    
     comment = Comment.query.get(comment_id)
     if not comment:
-        return jsonify(status="error", message="Comment not found"), 404
-
+        return {'status': 'error', 'message': 'Comment not found.'}
+    
     if comment.user_id != current_user.id:
-        return jsonify(status="error", message="Not authorized to delete this comment"), 403
-
+        return {'status': 'error', 'message': 'Not authorized to delete this comment.'}
+    
+    poem_id = comment.poem_id  # Make sure Comment has a poem_id field.
     db.session.delete(comment)
     db.session.commit()
-    return jsonify(status="success", message="Comment deleted")
+    # Broadcast to all clients in the poem's room that this comment was deleted.
+    socketio.emit('comment_deleted', {'comment_id': comment_id, 'poemId': poem_id}, room=f"poem_{poem_id}")
+    return {'status': 'success', 'message': 'Comment deleted.'}
+
+
+
+@socketio.on('send_comment')
+def handle_send_comment(data):
+    poem_id = data.get('poemId')
+    comment_text = data.get('comment')
+    if not poem_id or not comment_text:
+        return {'status': 'error', 'message': 'Missing poem id or comment text.'}
+    poem = Poem.query.get(poem_id)
+    if not poem:
+        return {'status': 'error', 'message': 'Poem not found.'}
+    comment = Comment(text=comment_text, poem=poem, user_id=current_user.id)
+    db.session.add(comment)
+    db.session.commit()
+    payload = {
+      'comment_id': comment.id,
+      'comment_text': comment.text,
+      'username': current_user.username,
+      'profile_image': current_user.profile_image if current_user.profile_image else None
+    }
+    # Emit new_comment to all users who are in this poem's room.
+    socketio.emit('new_comment', {**payload, 'poemId': poem_id}, room=f"poem_{poem_id}")
+    return {'status': 'success', **payload}
+
 
 @app.route('/delete_poem', methods=['POST'])
 @login_required
@@ -727,19 +774,28 @@ def create_chat_group():
     return redirect(url_for('chats'))
 
 # Route to send a message to a chat group
-@app.route('/send_message/<int:group_id>', methods=['POST'])
-@login_required
-def send_message(group_id):
-    group = ChatGroup.query.get_or_404(group_id)
-    if current_user not in group.members:
-        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
-    content = request.form.get('message')
-    if not content:
-        return jsonify({'status': 'error', 'message': 'No message content provided.'}), 400
-    msg = Message(content=content, chat_group=group, sender=current_user)
+@socketio.on('send_message')
+def handle_send_message(data):
+    group_id = data.get('groupId')
+    message_content = data.get('message')
+    if not group_id or not message_content:
+        return  # Optionally emit an error message
+    group = ChatGroup.query.get(group_id)
+    if not group or current_user not in group.members:
+        return  # Optionally emit an error message
+    msg = Message(content=message_content, chat_group=group, sender=current_user)
     db.session.add(msg)
     db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Message sent.'})
+    payload = {
+        'groupId': group_id,
+        'message': message_content,
+        'sender': current_user.username,
+        'sender_profile': current_user.profile_image,
+        'is_system': False
+    }
+    # Emit the new_message event to all clients in the room (room name is group_id as a string)
+    socketio.emit('new_message', payload, room=str(group_id))
+
 
 # Route to fetch messages for a chat group (for AJAX polling)
 @app.route('/get_messages/<int:group_id>')
@@ -760,27 +816,16 @@ def get_messages(group_id):
         })
     return jsonify(messages_data)
 
-# @socketio.on('join')
-# def on_join(data):
-#     room = data['group_id']
-#     join_room(room)
-#     emit('status', {'msg': f"{data['username']} has entered the room."}, room=room)
+@socketio.on('typing')
+def handle_typing(data):
+    group_id = data.get('groupId')
+    sender = data.get('sender')
+    socketio.emit('typing', {'groupId': group_id, 'sender': sender}, room=str(group_id))
 
-# @socketio.on('typing')
-# def on_typing(data):
-#     room = data['group_id']
-#     emit('typing', {'username': data['username']}, room=room)
-
-# @socketio.on('stop_typing')
-# def on_stop_typing(data):
-#     room = data['group_id']
-#     emit('stop_typing', {'username': data['username']}, room=room)
-
-# @socketio.on('new_message')
-# def on_new_message(data):
-#     room = data['group_id']
-#     # You may process and store the message here, then broadcast:
-#     emit('new_message', data, room=room)
+@socketio.on('stop_typing')
+def handle_stop_typing(data):
+    group_id = data.get('groupId')
+    socketio.emit('stop_typing', {'groupId': group_id}, room=str(group_id))
 
 
 @app.route('/leave_group/<int:group_id>', methods=['POST'])
@@ -825,31 +870,32 @@ def get_group_details(group_id):
     return jsonify({'status': 'success', 'group': group_details})
 
 
-# Route to update the group name via AJAX
-@app.route('/update_group_name/<int:group_id>', methods=['POST'])
-@login_required
-def update_group_name(group_id):
+@socketio.on('update_group_name')
+def handle_update_group_name(data):
+    group_id = data.get('groupId')
+    new_name = data.get('group_name')
     group = ChatGroup.query.get_or_404(group_id)
     if current_user not in group.members:
-        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
-    new_name = request.form.get('group_name')
+        return {'status': 'error', 'message': 'You are not a member of this group.'}
     if not new_name:
-        return jsonify({'status': 'error', 'message': 'Group name cannot be empty.'}), 400
+        return {'status': 'error', 'message': 'Group name cannot be empty.'}
     group.name = new_name
     db.session.commit()
-    return jsonify({'status': 'success', 'group_name': new_name})
+    # Broadcast update to all clients in this group
+    socketio.emit('group_updated', {'groupId': group_id, 'name': new_name}, room=str(group_id))
+    return {'status': 'success', 'group_name': new_name}
+
+
 
 
 # Route to update group members via AJAX
-@app.route('/update_group_members/<int:group_id>', methods=['POST'])
-@login_required
-def update_group_members(group_id):
+@socketio.on('update_group_members')
+def handle_update_group_members(data):
+    group_id = data.get('groupId')
+    member_ids = data.get('members', [])
     group = ChatGroup.query.get_or_404(group_id)
     if current_user not in group.members:
-        return jsonify({'status': 'error', 'message': 'You are not a member of this group.'}), 403
-    # Expect a list of user IDs (strings) sent as form data under 'members'
-    member_ids = request.form.getlist('members')
-    # Always keep the current user in the group
+        return {'status': 'error', 'message': 'You are not a member of this group.'}
     new_members = [current_user]
     for uid in member_ids:
         user = User.query.get(uid)
@@ -857,9 +903,10 @@ def update_group_members(group_id):
             new_members.append(user)
     group.members = new_members
     db.session.commit()
-    # Prepare a simple list of updated member info
     members_data = [{'id': m.id, 'username': m.username} for m in group.members]
-    return jsonify({'status': 'success', 'members': members_data})
+    socketio.emit('group_updated', {'groupId': group_id, 'members': members_data}, room=str(group_id))
+    return {'status': 'success', 'members': members_data}
+
 
 
 
@@ -914,5 +961,5 @@ def logout():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    socketio.run(app, debug=True)
 

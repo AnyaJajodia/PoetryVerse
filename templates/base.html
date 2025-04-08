@@ -90,59 +90,20 @@
     </div>
   </div>
   
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
   {% block scripts %}{% endblock %}
   <script>
     // Delete Modal JavaScript
+    window.currentUsername = "{{ current_user.username }}";
+    window.availableUsers = {{ available_users|default([])|tojson }};
+
     document.addEventListener('DOMContentLoaded', function() {
       let deleteType = '';
       let deleteName = '';
       let deleteId = '';
-  
-      // document.querySelectorAll('.delete-btn').forEach(btn => {
-      //   btn.addEventListener('click', function() {
-      //     deleteType = this.dataset.type;
-      //     deleteName = this.dataset.name;
-      //     deleteId = this.dataset.id || '';
-      //     let text = "";
-      //     if(deleteType === 'poem') {
-      //       text = "Are you sure you want to delete the poem: " + deleteName + "?";
-      //     } else if(deleteType === 'collection') {
-      //       text = "Are you sure you want to delete the collection: " + deleteName + "?";
-      //     }
-      //     document.getElementById('deleteConfirmText').innerText = text;
-      //     let modalEl = document.getElementById('deleteConfirmModal');
-      //     let modal = new bootstrap.Modal(modalEl);
-      //     modal.show();
-      //   });
-      // });
-  
-      document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
-        let url = "";
-        let formData = new FormData();
-        if(deleteType === 'poem') {
-          url = '/delete_poem';
-          formData.append('poem_id', deleteId);
-        } else if(deleteType === 'collection') {
-          url = '/delete_collection';
-          formData.append('collection_id', deleteId);
-        }
-        fetch(url, {
-          method: 'POST',
-          body: formData,
-        })
-        .then(response => response.json())
-        .then(data => {
-          if(data.status === 'success') {
-            window.location.href = '/profile';
-          } else {
-            alert("Error: " + data.message);
-          }
-        })
-        .catch(error => console.error("Error:", error));
-      });
     });
   </script>
 </body>

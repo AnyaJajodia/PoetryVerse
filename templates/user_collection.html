@@ -56,33 +56,3 @@
   </div>
 </div>
 {% endblock %}
-
-{% block scripts %}
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.favorite-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        const poemId = this.dataset.poemId;
-        fetch(`/toggle_favorite/${poemId}`, { method: "POST" })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === "success") {
-            const starIcon = this.querySelector('.star-icon');
-            if (data.favorited) {
-              starIcon.classList.remove("text-secondary");
-              starIcon.classList.add("text-warning");
-            } else {
-              starIcon.classList.remove("text-warning");
-              starIcon.classList.add("text-secondary");
-            }
-          } else {
-            alert("Error: " + data.message);
-          }
-        })
-        .catch(error => console.error("Error:", error));
-      });
-    });
-  });
-</script>
-{% endblock %}
-  
